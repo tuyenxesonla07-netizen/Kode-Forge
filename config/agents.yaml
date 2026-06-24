@@ -1,0 +1,331 @@
+# Agent 注册配置
+
+> 定义所有 Agent 的注册信息、能力声明和 Schema 引用。
+
+---
+
+## 1. 注册表示例
+
+```yaml
+# config/agents.yaml
+
+protocol_version: "1.0"
+pipeline_type: "dual_phase"  # requirement_decomposition + code_review
+
+agents:
+  # === 主管 ===
+  codex_supervisor:
+    role: "supervisor"
+    module: "orchestration"
+    version: "1.0.0"
+    capabilities:
+      - requirement_parsing
+      - task_decomposition
+      - result_aggregation
+      - quality_evaluation
+      - conflict_resolution
+    max_concurrency: 1
+    timeout_ms: 60000
+
+  # === Superpowers 插件 ===
+  superpowers:
+    role: "plugin"
+    module: "infrastructure"
+    version: "1.0.0"
+    capabilities:
+      - agent_registration
+      - message_routing
+      - context_injection
+      - result_aggregation
+    config:
+      max_agents: 20
+      message_ttl_ms: 30000
+      retry_policy:
+        max_retries: 3
+        backoff: "exponential"
+        base_delay_ms: 2000
+
+  # === Prompt Agent ===
+  prompt_agent:
+    role: "integrator"
+    module: "prompt_engineering"
+    version: "1.0.0"
+    capabilities:
+      - context_integration
+      - conflict_detection
+      - prompt_generation
+      - dependency_analysis
+    max_concurrency: 1
+    timeout_ms: 30000
+
+  # === 专家 Agent ===
+  expert_auth:
+    role: "expert"
+    module: "authentication"
+    version: "1.0.0"
+    capabilities:
+      - jwt_auth
+      - oauth2
+      - session_management
+      - rbac
+    input_schema: "schemas/auth_input.json"
+    output_schema: "schemas/auth_output.json"
+    max_concurrency: 3
+    timeout_ms: 30000
+    review_capabilities:
+      - security_audit
+      - token_validation
+      - session_security
+
+  expert_product:
+    role: "expert"
+    module: "product_catalog"
+    version: "1.0.0"
+    capabilities:
+      - product_search
+      - category_management
+      - inventory_display
+      - filtering
+    input_schema: "schemas/product_input.json"
+    output_schema: "schemas/product_output.json"
+    max_concurrency: 3
+    timeout_ms: 30000
+    dependencies:
+      - authentication
+    review_capabilities:
+      - search_accuracy
+      - cache_efficiency
+      - data_consistency
+
+  expert_cart:
+    role: "expert"
+    module: "shopping_cart"
+    version: "1.0.0"
+    capabilities:
+      - cart_management
+      - price_calculation
+      - coupon_handling
+      - inventory_validation
+    input_schema: "schemas/cart_input.json"
+    output_schema: "schemas/cart_output.json"
+    max_concurrency: 3
+    timeout_ms: 30000
+    dependencies:
+      - authentication
+      - product_catalog
+    review_capabilities:
+      - price_accuracy
+      - concurrency_safety
+      - session_persistence
+
+  expert_order:
+    role: "expert"
+    module: "order_system"
+    version: "1.0.0"
+    capabilities:
+      - crud_operations
+      - state_machine
+      - inventory_management
+      - order_workflow
+    input_schema: "schemas/order_input.json"
+    output_schema: "schemas/order_output.json"
+    max_concurrency: 3
+    timeout_ms: 30000
+    dependencies:
+      - authentication
+      - shopping_cart
+    review_capabilities:
+      - data_consistency
+      - concurrency_safety
+      - transaction_integrity
+
+  expert_payment:
+    role: "expert"
+    module: "payment_integration"
+    version: "1.0.0"
+    capabilities:
+      - payment_gateway
+      - idempotency
+      - reconciliation
+      - refund_handling
+    input_schema: "schemas/payment_input.json"
+    output_schema: "schemas/payment_output.json"
+    max_concurrency: 3
+    timeout_ms: 30000
+    dependencies:
+      - authentication
+      - order_system
+    review_capabilities:
+      - financial_accuracy
+      - compliance_check
+      - idempotency_validation
+
+  expert_notification:
+    role: "expert"
+    module: "notification_service"
+    version: "1.0.0"
+    capabilities:
+      - email_notification
+      - sms_notification
+      - push_notification
+      - template_management
+    input_schema: "schemas/notification_input.json"
+    output_schema: "schemas/notification_output.json"
+    max_concurrency: 5
+    timeout_ms: 30000
+    dependencies:
+      - authentication
+    review_capabilities:
+      - delivery_reliability
+      - template_validation
+      - rate_limiting
+
+  expert_report:
+    role: "expert"
+    module: "data_reporting"
+    version: "1.0.0"
+    capabilities:
+      - data_aggregation
+      - chart_generation
+      - export_formats
+      - scheduled_reports
+    input_schema: "schemas/report_input.json"
+    output_schema: "schemas/report_output.json"
+    max_concurrency: 3
+    timeout_ms: 30000
+    dependencies:
+      - authentication
+      - order_system
+    review_capabilities:
+      - data_accuracy
+      - query_performance
+      - export_integrity
+```
+
+---
+
+## 2. 依赖关系图
+
+```mermaid
+graph LR
+    CS["Codex 主管"] --> SP["Superpowers"]
+    SP --> PA["Prompt Agent"]
+    SP --> EX1["认证专家"]
+    SP --> EX2["商品专家"]
+    SP --> EX3["购物车专家"]
+    SP --> EX4["订单专家"]
+    SP --> EX5["支付专家"]
+    SP --> EX6["通知专家"]
+    SP --> EX7["报表专家"]
+
+    EX2 --> EX1
+    EX3 --> EX1
+    EX3 --> EX2
+    EX4 --> EX1
+    EX4 --> EX3
+    EX5 --> EX1
+    EX5 --> EX4
+    EX6 --> EX1
+    EX7 --> EX1
+    EX7 --> EX4
+
+    style CS fill:#fff3e0,stroke:#e65100
+    style SP fill:#fce4ec,stroke:#c62828
+    style PA fill:#f3e5f5,stroke:#6a1b9a
+    style EX1 fill:#e3f2fd,stroke:#1565c0
+    style EX2 fill:#e3f2fd,stroke:#1565c0
+    style EX3 fill:#e3f2fd,stroke:#1565c0
+    style EX4 fill:#e3f2fd,stroke:#1565c0
+    style EX5 fill:#e3f2fd,stroke:#1565c0
+    style EX6 fill:#e3f2fd,stroke:#1565c0
+    style EX7 fill:#e3f2fd,stroke:#1565c0
+```
+
+---
+
+## 3. 流水线配置
+
+```yaml
+# config/pipeline.yaml
+
+pipeline:
+  name: "claude-codex-multi-agent"
+  version: "1.0.0"
+
+  phases:
+    - name: "requirement_decomposition"
+      description: "需求拆分阶段"
+      steps:
+        - id: "parse_requirement"
+          agent: "codex_supervisor"
+          action: "parse"
+          timeout_ms: 30000
+
+        - id: "identify_modules"
+          agent: "codex_supervisor"
+          action: "identify"
+          timeout_ms: 15000
+
+        - id: "dispatch_tasks"
+          agent: "superpowers"
+          action: "dispatch_parallel"
+          parallel: true
+          timeout_ms: 30000
+
+        - id: "collect_specs"
+          agent: "superpowers"
+          action: "aggregate"
+          timeout_ms: 10000
+
+        - id: "generate_prompt"
+          agent: "prompt_agent"
+          action: "integrate"
+          timeout_ms: 30000
+
+        - id: "generate_code"
+          agent: "claude_code"
+          action: "implement"
+          timeout_ms: 300000
+
+    - name: "code_review"
+      description: "代码审查阶段"
+      steps:
+        - id: "distribute_code"
+          agent: "superpowers"
+          action: "distribute_by_module"
+          parallel: true
+          timeout_ms: 15000
+
+        - id: "collect_reviews"
+          agent: "superpowers"
+          action: "aggregate_reviews"
+          timeout_ms: 10000
+
+        - id: "evaluate_quality"
+          agent: "codex_supervisor"
+          action: "evaluate"
+          timeout_ms: 15000
+
+      retry_loop:
+        condition: "quality_score < 0.8 OR has_critical_issues"
+        max_iterations: 3
+        steps:
+          - id: "fix_code"
+            agent: "claude_code"
+            action: "fix"
+            timeout_ms: 300000
+
+  quality_gates:
+    - metric: "all_modules_pass_review"
+      threshold: true
+    - metric: "security_score"
+      threshold: ">= 0.8"
+    - metric: "test_coverage"
+      threshold: ">= 0.7"
+    - metric: "no_critical_issues"
+      threshold: true
+```
+
+---
+
+*文档结束*

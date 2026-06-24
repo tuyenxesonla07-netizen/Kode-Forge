@@ -1,0 +1,116 @@
+# 流水线配置
+
+> 定义双阶段流水线的执行步骤、超时策略和质量门禁。
+
+---
+
+## 流水线概览
+
+```mermaid
+flowchart TB
+    subgraph 阶段一：需求拆分
+        direction TB
+        S1["① 解析需求<br/>Codex | 30s"]
+        S2["② 识别模块<br/>Codex | 15s"]
+        S3["③ 并行分发<br/>Superpowers | 30s"]
+        S4["④ 收集规格<br/>Superpowers | 10s"]
+        S5["⑤ 整合 Prompt<br/>Prompt Agent | 30s"]
+        S6["⑥ 生成代码<br/>Claude Code | 5min"]
+    end
+
+    subgraph 阶段二：代码审查
+        direction TB
+        S7["⑦ 分发代码<br/>Superpowers | 15s"]
+        S8["⑧ 并行审查<br/>Expert Agents | 30s"]
+        S9["⑨ 汇总评估<br/>Codex | 15s"]
+        S10{"⑩ 质量门禁"}
+        S11["⑪ 修复代码<br/>Claude Code | 5min"]
+        S12["⑫ 交付"]
+    end
+
+    S1 --> S2 --> S3 --> S4 --> S5 --> S6
+    S6 --> S7 --> S8 --> S9 --> S10
+    S10 -->|"不通过"| S11
+    S11 --> S7
+    S10 -->|"通过"| S12
+
+    style S1 fill:#fff3e0,stroke:#e65100
+    style S2 fill:#fff3e0,stroke:#e65100
+    style S3 fill:#fce4ec,stroke:#c62828
+    style S4 fill:#fce4ec,stroke:#c62828
+    style S5 fill:#f3e5f5,stroke:#6a1b9a
+    style S6 fill:#e8f5e9,stroke:#2e7d32
+    style S7 fill:#fce4ec,stroke:#c62828
+    style S8 fill:#e3f2fd,stroke:#1565c0
+    style S9 fill:#fff3e0,stroke:#e65100
+    style S10 fill:#fff9c4,stroke:#f57f17
+    style S11 fill:#e8f5e9,stroke:#2e7d32
+    style S12 fill:#c8e6c9,stroke:#2e7d32
+```
+
+---
+
+## 质量门禁规则
+
+```yaml
+quality_gates:
+  - name: "模块审查通过"
+    metric: "all_modules_passed"
+    operator: "equals"
+    value: true
+    blocking: true
+
+  - name: "安全评分"
+    metric: "security_score"
+    operator: ">="
+    value: 0.8
+    blocking: true
+
+  - name: "测试覆盖率"
+    metric: "test_coverage"
+    operator: ">="
+    value: 0.7
+    blocking: false
+
+  - name: "无严重问题"
+    metric: "critical_issues_count"
+    operator: "equals"
+    value: 0
+    blocking: true
+
+  - name: "接口一致性"
+    metric: "interface_consistency"
+    operator: "equals"
+    value: true
+    blocking: true
+```
+
+---
+
+## 超时与重试
+
+```yaml
+timeouts:
+  default_step_timeout_ms: 30000
+  max_pipeline_timeout_minutes: 30
+
+retry:
+  max_iterations: 3
+  backoff_strategy: "exponential"
+  base_delay_ms: 2000
+  max_delay_ms: 30000
+  retryable_errors:
+    - E003  # timeout
+    - E004  # internal
+    - E005  # dependency
+    - E008  # capacity
+  non_retryable_errors:
+    - E001  # validation
+    - E006  # conflict
+    - E007  # schema_mismatch
+    - E009  # authorization
+```
+
+---
+
+*文档结束*
