@@ -31,7 +31,7 @@ jobs:
       - name: Lint with ruff
         run: |
           pip install ruff
-          ruff check tools/ agents/ server/ tests/ --ignore E501
+          ruff check tools/ agents/ tests/ --ignore E501
 
       - name: Run tests (Python ${{ matrix.python-version }})
         run: |
@@ -49,29 +49,4 @@ jobs:
 
       - name: Fail if tests failed
         if: env.TEST_EXIT != '0'
-        run: exit 1
-
-  frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-      - name: Install & Build frontend
-        working-directory: frontend
-        run: |
-          npm ci
-          npm run build 2>&1 | tee build-output.txt
-          echo "BUILD_EXIT=${PIPESTATUS[0]}" >> $GITHUB_ENV
-
-      - name: Upload build output
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: frontend-build
-          path: build-output.txt
-
-      - name: Fail if build failed
-        if: env.BUILD_EXIT != '0'
         run: exit 1

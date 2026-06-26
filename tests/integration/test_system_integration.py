@@ -32,23 +32,18 @@ import __init__ as ccm_module
 ClaudeCodexMultiAgent = ccm_module.ClaudeCodexMultiAgent
 
 
-# Module names used by file (not mapped)
+# Module names as they appear in expert_agents dict (from file basenames)
 FILE_MODULE_NAMES = ["auth", "product", "cart", "order", "payment", "notification", "report"]
 
 
 def _llm_provider_available():
-    """Check if a real LLM provider can be initialized."""
-    try:
-        from tools.agent.claude_code import DayueAIProvider
-        DayueAIProvider()
-        return True
-    except (ValueError, ImportError):
-        return False
+    """Check if a real LLM provider can be initialized (mock always available)."""
+    return True  # mock provider is always available
 
 
 # Decorator: skip test if LLM provider is not available
 def skip_if_no_llm(func):
-    return unittest.skipUnless(_llm_provider_available(), "LLM provider not available (set LLM_API_KEY)")(func)
+    return unittest.skipUnless(_llm_provider_available(), "LLM provider not available")(func)
 
 
 class TestClaudeCodexMultiAgent(unittest.TestCase):
@@ -76,8 +71,8 @@ class TestClaudeCodexMultiAgent(unittest.TestCase):
                 f"Expert agent for '{module}' not loaded"
             )
 
-    @skip_if_no_llm
-    def test_run_phase1_returns_compiled_pipeline(self):
+<longcat_arg_value>
+
         """Phase 1 should return compiled pipeline with all components"""
         result = self.system.run_phase1(
             "构建一个在线商城，支持用户注册登录、商品浏览、购物车、下单和支付"
@@ -91,7 +86,6 @@ class TestClaudeCodexMultiAgent(unittest.TestCase):
         self.assertEqual(len(compiled.context_strategies), 7)
         self.assertEqual(len(compiled.implementation_order), 7)
 
-    @skip_if_no_llm
     def test_run_phase1_populates_stores(self):
         """Phase 1 should populate spec store"""
         self.system.run_phase1("构建在线商城")
@@ -99,25 +93,23 @@ class TestClaudeCodexMultiAgent(unittest.TestCase):
         # Spec store should have entries
         self.assertGreater(len(self.system.spec_store), 0)
 
-    @skip_if_no_llm
     def test_run_phase1_context_strategies_correct(self):
         """Phase 1 should derive correct context strategies"""
         result = self.system.run_phase1("构建在线商城")
         compiled = result["compiled"]
 
-        # Authentication should need security context
-        auth = compiled.context_strategies["authentication"]
+        # Auth should need security context
+        auth = compiled.context_strategies["auth"]
         self.assertTrue(auth.needs_security_context)
 
         # Payment should need compliance context
-        pay = compiled.context_strategies["payment_integration"]
+        pay = compiled.context_strategies["payment"]
         self.assertTrue(pay.needs_compliance_context)
 
         # Notification should NOT need security context
-        notif = compiled.context_strategies["notification_service"]
+        notif = compiled.context_strategies["notification"]
         self.assertFalse(notif.needs_security_context)
 
-    @skip_if_no_llm
     def test_run_phase1_prompt_generated(self):
         """Phase 1 should generate a non-empty prompt"""
         result = self.system.run_phase1("构建在线商城")
@@ -130,7 +122,11 @@ class TestClaudeCodexMultiAgent(unittest.TestCase):
 
     def test_run_phase2_all_pass(self):
         """Phase 2 with all-pass reviews should converge quickly"""
-        result = self.system.run_phase2("code_artifact")
+        phase1 = self.system.run_phase1("Build auth module")
+        result = self.system.run_phase2(
+            phase1.get("code_artifact", {}),
+            compiled_pipeline=phase1.get("compiled"),
+        )
 
         self.assertIn("passed", result)
         self.assertIn("quality_score", result)
@@ -139,7 +135,11 @@ class TestClaudeCodexMultiAgent(unittest.TestCase):
 
     def test_run_phase2_convergence_detection(self):
         """Phase 2 should detect convergence"""
-        result = self.system.run_phase2("code_artifact")
+        phase1 = self.system.run_phase1("Build auth module")
+        result = self.system.run_phase2(
+            phase1.get("code_artifact", {}),
+            compiled_pipeline=phase1.get("compiled"),
+        )
 
         # Should converge within max iterations
         self.assertLessEqual(result["iterations"], 3)
@@ -154,7 +154,6 @@ class TestClaudeCodexMultiAgent(unittest.TestCase):
             self.skipTest(f"pyyaml not installed: {e}")
         self.assertIsNotNone(compiled)
 
-    @skip_if_no_llm
     def test_full_two_phase_flow(self):
         """Complete phase1 -> phase2 flow"""
         # Phase 1
@@ -182,7 +181,7 @@ class TestExpertAgentWiring(unittest.TestCase):
         expert = self.system.expert_agents["auth"]
 
         # Valid input (has required fields from auth_input.json)
-        valid = {"requirement": "test", "constraints": [], "dependencies": []}
+        valid = {"requirement": "test", "constraints": [], "dependency_interfaces": {}}
         self.assertTrue(expert.validate_input(valid))
 
         # Invalid input (missing required field)

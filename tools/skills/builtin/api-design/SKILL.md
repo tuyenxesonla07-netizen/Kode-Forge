@@ -1,34 +1,28 @@
 ---
 name: api-design
-description: RESTful API design patterns for FastAPI modules
-triggers: [api, endpoint, route, rest, fastapi, http, request, response]
+description: FastAPI best practices for RESTful API design, routing, and middleware
+triggers: [api, endpoint, route, rest, fastapi, design]
 ---
 
-# API Design Standards
+# API Design Skill
 
-## Endpoint Design
-- Use plural nouns for resource names: `/users`, `/orders`
-- Use HTTP methods semantically: GET (read), POST (create), PUT (update), DELETE (remove)
-- Return appropriate status codes: 200, 201, 204, 400, 404, 422, 500
-- Version APIs in the URL: `/v1/users`
+When designing or generating API endpoints, follow these conventions:
 
-## Request/Response
-- Use Pydantic models for request bodies and response schemas
-- Validate all input with Pydantic validators
-- Return consistent JSON structure: `{"data": ..., "error": null}`
-- Use query parameters for filtering, pagination, and sorting
+1. **Routing**: Use APIRouter with prefix and tags for grouping
+2. **Validation**: Use Pydantic v2 models for request/response validation
+3. **Error Handling**: Use HTTPException with proper status codes
+4. **Async**: Use async def for I/O-bound operations
+5. **Dependency Injection**: Use FastAPI Depends() for shared resources
+6. **Documentation**: Every endpoint must have a docstring and response model
 
-## Error Responses
-- Return structured error objects: `{"error": {"code": "...", "message": "..."}}`
-- Include `detail` field for validation errors (FastAPI default)
-- Never expose internal stack traces in production
+## FastAPI Patterns
 
-## Documentation
-- Every endpoint must have a docstring with summary, args, returns
-- Use FastAPI decorators for OpenAPI spec generation
-- Document all possible error responses
+from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
 
-## Middleware
-- Use CORS middleware for cross-origin requests
-- Add request timing middleware
-- Implement rate limiting for public endpoints
+router = APIRouter(prefix="/api/v1", tags=["items"])
+
+@router.post("/items", response_model=ItemResponse, status_code=status.HTTP_201_CREATED)
+async def create_item(item: ItemCreate):
+    """Create a new item."""
+    ...

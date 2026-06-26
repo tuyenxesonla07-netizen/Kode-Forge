@@ -328,4 +328,55 @@ pipeline:
 
 ---
 
+## 4. 执行后端配置
+
+```yaml
+# config/agents.yaml
+
+execution_backends:
+  # 默认使用的执行后端
+  default: "claude-code"
+
+  # Claude Code 后端（默认）
+  # 通过 dayueai.fun API 调用 Claude 生成代码
+  claude-code:
+    type: "claude-code"
+    enabled: true
+    priority: 1
+    config:
+      api_key_env: "LLM_API_KEY"
+      base_url_env: "LLM_API_BASE_URL"
+      model: "claude-opus-4-7"
+
+  # ECC 后端
+  # 通过 MCP 协议连接 ECC 的 67+ 专业 subagent
+  # 需要本地安装 ECC (Claude Code 插件)
+  ecc:
+    type: "ecc"
+    enabled: false
+    priority: 2
+    config:
+      base_url: "http://localhost:8001"
+      api_key_env: "ECC_API_KEY"
+      default_agent: "code-reviewer"
+      timeout: 300
+
+  # OpenHands 后端
+  # 通过 OpenHands Agent Server REST API 执行
+  # 需要启动 OpenHands 服务 (docker compose up)
+  openhands:
+    type: "openhands"
+    enabled: false
+    priority: 3
+    config:
+      base_url: "http://localhost:3000"
+      api_key_env: "OPENHANDS_API_KEY"
+      model: "gpt-5.5"
+      timeout: 120
+      poll_interval: 5
+      max_polls: 60
+```
+
+---
+
 *文档结束*

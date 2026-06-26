@@ -98,6 +98,7 @@ class ExpertAgent:
         capabilities: List[str] = None,
         review_capabilities: List[str] = None,
         version: str = "1.0.0",
+        skill_manager=None,
     ):
         self.agent_id = agent_id
         self.module_name = module_name
@@ -107,6 +108,7 @@ class ExpertAgent:
         self.capabilities = capabilities or []
         self.review_capabilities = review_capabilities or []
         self.version = version
+        self.skill_manager = skill_manager
 
     def _build_analysis_prompt(self, input_data: ExpertInput) -> tuple:
         """构建分析 prompt，返回 (system_prompt, user_prompt)"""
@@ -116,12 +118,25 @@ class ExpertAgent:
         )
         capabilities_str = ", ".join(self.capabilities) if self.capabilities else "general"
 
+        # Inject relevant skills into system prompt
+        skill_section = ""
+        if self.skill_manager:
+            skills = self.skill_manager.select_for(
+                input_data.requirement, module_type=self.module_name
+            )
+            if skills:
+                skill_section = self.skill_manager.inject(skills, "")
+
         system_prompt = (
             f"You are an expert software architect for the '{self.module_name}' module.\n"
             f"Capabilities: {capabilities_str}\n"
             f"Analyze the requirement and produce a structured module specification.\n\n"
             f"Output format (JSON):\n{output_schema_str}"
         )
+
+        # Append skill instructions to system prompt
+        if skill_section:
+            system_prompt += f"\n\n{skill_section}"
 
         user_prompt = (
             f"## Module: {self.module_name}\n"
@@ -237,6 +252,7 @@ def create_expert_agents(
     schemas_dir: str = "config/schemas",
     agents_config: dict = None,
     llm_provider=None,
+    skill_manager=None,
 ) -> Dict[str, ExpertAgent]:
     """
     动态发现并创建专家 Agent。
@@ -250,6 +266,7 @@ def create_expert_agents(
         schemas_dir: Schema 文件目录
         agents_config: agents.yaml 解析后的字典
         llm_provider: LLM Provider 实例
+        skill_manager: SkillManager 实例（可选，用于注入技能到 prompt）
 
     Returns:
         {module_name: ExpertAgent} 字典
@@ -303,6 +320,7 @@ def create_expert_agents(
             capabilities=capabilities,
             review_capabilities=review_capabilities,
             version=version,
+            skill_manager=skill_manager,
         )
 
     return experts
