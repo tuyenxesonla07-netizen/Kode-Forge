@@ -17,7 +17,6 @@ DayueAIProvider cannot be initialized.
 import os
 import sys
 import unittest
-import importlib
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
@@ -27,8 +26,8 @@ for key in list(sys.modules.keys()):
         del sys.modules[key]
 
 # Import via the package's __init__.py
-import __init__ as ccm_module
-
+import importlib
+ccm_module = importlib.import_module("claude_codex_multi_agent")
 ClaudeCodexMultiAgent = ccm_module.ClaudeCodexMultiAgent
 
 
