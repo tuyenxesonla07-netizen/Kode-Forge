@@ -43,11 +43,15 @@ class SessionState:
     created_at: str = field(default_factory=_now)
     updated_at: str = field(default_factory=_now)
 
-    def checkpoint(self, label: str) -> dict:
+    def checkpoint(self, label: str, data: dict = None) -> dict:
         """
         保存检查点快照。
 
         长任务中断后可从最近检查点恢复。
+
+        Args:
+            label: 检查点标签
+            data: 可选的额外数据，会合并到快照中
         """
         snapshot = {
             "label": label,
@@ -58,6 +62,8 @@ class SessionState:
             "tool_calls_made": self.tool_calls_made,
             "facts": dict(self.facts),
         }
+        if data:
+            snapshot["data"] = data
         self.checkpoints.append(snapshot)
         self.updated_at = _now()
         return snapshot
