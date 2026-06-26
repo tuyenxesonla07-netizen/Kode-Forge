@@ -21,12 +21,13 @@ import importlib
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
-# Force fresh import by clearing any cached modules
-for key in list(sys.modules.keys()):
-    if key.startswith("tools") or key == "claude_codex_multi_agent":
-        del sys.modules[key]
-
-ccm_module = importlib.import_module("claude_codex_multi_agent")
+# Import the package __init__ via importlib
+spec = importlib.util.spec_from_file_location(
+    "claude_codex_multi_agent",
+    os.path.join(os.path.dirname(__file__), "..", "..", "__init__.py"),
+)
+ccm_module = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(ccm_module)
 ClaudeCodexMultiAgent = ccm_module.ClaudeCodexMultiAgent
 
 
