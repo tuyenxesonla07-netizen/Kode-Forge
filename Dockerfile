@@ -3,9 +3,15 @@
 # Stage 1: Frontend build
 FROM node:22-alpine AS frontend-build
 WORKDIR /app/frontend
+
+# Copy package files first (this layer is cached unless package.json changes)
 COPY frontend/package*.json ./
-RUN npm ci --include=dev --no-audit --no-fund || npm install --include=dev --no-audit --no-fund
+RUN npm ci --include=dev --no-audit --no-fund
+
+# Copy source code (this layer is cached unless source changes)
 COPY frontend/ .
+
+# Build (this layer re-runs when either package.json or source changes)
 RUN npm run build
 
 # Stage 2: Backend
@@ -22,7 +28,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copy backend code (exclude frontend source to keep image small)
+# Copy backend code
 COPY server/ ./server/
 COPY agents/ ./agents/
 COPY tools/ ./tools/
