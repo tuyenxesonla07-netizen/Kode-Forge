@@ -6,7 +6,10 @@ WORKDIR /app/frontend
 
 # Copy package files first (this layer is cached unless package.json changes)
 COPY frontend/package*.json ./
-RUN npm ci --include=dev --no-audit --no-fund
+# Install with retry and fallback (npm ci fails if registry is unreachable)
+RUN npm ci --include=dev --no-audit --no-fund --fetch-retries=5 --fetch-retry-mintimeout=20000 || \
+    npm install --include=dev --no-audit --no-fund --fetch-retries=5 --fetch-retry-mintimeout=20000 || \
+    npm install --include=dev --no-audit --no-fund --prefer-offline
 
 # Copy source code (this layer is cached unless source changes)
 COPY frontend/ .
