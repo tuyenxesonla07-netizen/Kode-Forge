@@ -71,7 +71,7 @@ class TestClaudeCodexMultiAgent(unittest.TestCase):
                 f"Expert agent for '{module}' not loaded"
             )
 
-<longcat_arg_value>
+
 
         """Phase 1 should return compiled pipeline with all components"""
         result = self.system.run_phase1(
