@@ -26,11 +26,10 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
-          pip install pytest pytest-asyncio httpx
+          pip install -r requirements-dev.txt
 
       - name: Lint with ruff
         run: |
-          pip install ruff
           ruff check tools/ agents/ tests/ --ignore E501
 
       - name: Run tests (Python ${{ matrix.python-version }})

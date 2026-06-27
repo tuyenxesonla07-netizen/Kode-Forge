@@ -1,0 +1,56 @@
+# docker-compose.yml — One-command deployment
+#
+# Usage:
+#   docker compose up             # start MCP server (default)
+#   docker compose run --rm eval  # run eval suite
+#   docker compose run --rm test  # run tests
+#   docker compose run --rm lint  # lint check
+#   docker compose run --rm shell # interactive shell
+#
+# With Anthropic backend:
+#   LLM_BACKEND=anthropic ANTHROPIC_API_KEY=sk-ant-... docker compose up
+
+version: "3.9"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: claude-codex-multi-agent
+    ports:
+      - "${MCP_PORT:-9000}:9000"
+    environment:
+      - LLM_BACKEND=${LLM_BACKEND:-mock}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - MCP_HOST=0.0.0.0
+      - MCP_PORT=9000
+    command: serve
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/sse"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+  # One-shot services (use 'docker compose run --rm')
+  eval:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: eval
+    profiles: ["one-shot"]
+
+  test:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: test
+    profiles: ["one-shot"]
+
+  lint:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: lint
+    profiles: ["one-shot"]

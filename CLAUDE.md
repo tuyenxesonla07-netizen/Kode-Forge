@@ -47,9 +47,6 @@ User Requirement
 
 ## Commands
 ```bash
-# Run end-to-end trace
-python -m examples.ecommerce_trace
-
 # Run tests
 python -m pytest tests/ -v
 
@@ -63,4 +60,3 @@ python -c "import asyncio; from tools.mcp import *; ..."
 ## Environment Variables
 - `ANTHROPIC_API_KEY` — API key for Anthropic Claude provider
 - `LLM_API_KEY` — Generic LLM API key
-- `DATABASE_URL` — PostgreSQL connection (optional, falls back to in-memory)

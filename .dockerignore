@@ -1,17 +1,35 @@
 # .dockerignore
 
+# Git
+.git
+
+# Python
 __pycache__
 *.pyc
 *.pyo
 *.egg-info
-.git
-.github
-.pytest_cache
-.tox
 .venv
 venv/
 env/
+
+# IDE
+.vscode
+.idea
+*.swp
+*.swo
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# CI
+.github
+
+# Misc
+*.md
 .env
+.env.example
 data/
 *.db
 *.sqlite3
