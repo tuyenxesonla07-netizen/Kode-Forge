@@ -58,8 +58,8 @@ agents:
     max_concurrency: 1
     timeout_ms: 30000
 
-  # === 专家 Agent ===
-  expert_auth:
+  # === 专家 Agent (auto-discovered from schemas) ===
+  expert_authentication:
     role: "expert"
     module: "authentication"
     version: "1.0.0"
@@ -68,8 +68,8 @@ agents:
       - oauth2
       - session_management
       - rbac
-    input_schema: "schemas/auth_input.json"
-    output_schema: "schemas/auth_output.json"
+    input_schema: "schemas/authentication_input.json"
+    output_schema: "schemas/authentication_output.json"
     max_concurrency: 3
     timeout_ms: 30000
     review_capabilities:
@@ -77,129 +77,45 @@ agents:
       - token_validation
       - session_security
 
-  expert_product:
+  expert_data_processing:
     role: "expert"
-    module: "product_catalog"
+    module: "data_processing"
     version: "1.0.0"
     capabilities:
-      - product_search
-      - category_management
-      - inventory_display
-      - filtering
-    input_schema: "schemas/product_input.json"
-    output_schema: "schemas/product_output.json"
+      - data_transformation
+      - validation
+      - pipeline_orchestration
+      - error_handling
+    input_schema: "schemas/data_processing_input.json"
+    output_schema: "schemas/data_processing_output.json"
     max_concurrency: 3
     timeout_ms: 30000
     dependencies:
       - authentication
     review_capabilities:
-      - search_accuracy
-      - cache_efficiency
-      - data_consistency
+      - data_integrity
+      - transformation_accuracy
+      - error_coverage
 
-  expert_cart:
+  expert_api_integration:
     role: "expert"
-    module: "shopping_cart"
+    module: "api_integration"
     version: "1.0.0"
     capabilities:
-      - cart_management
-      - price_calculation
-      - coupon_handling
-      - inventory_validation
-    input_schema: "schemas/cart_input.json"
-    output_schema: "schemas/cart_output.json"
+      - rest_api_design
+      - graphql_schema
+      - middleware_integration
+      - request_validation
+    input_schema: "schemas/api_integration_input.json"
+    output_schema: "schemas/api_integration_output.json"
     max_concurrency: 3
     timeout_ms: 30000
     dependencies:
       - authentication
-      - product_catalog
     review_capabilities:
-      - price_accuracy
-      - concurrency_safety
-      - session_persistence
-
-  expert_order:
-    role: "expert"
-    module: "order_system"
-    version: "1.0.0"
-    capabilities:
-      - crud_operations
-      - state_machine
-      - inventory_management
-      - order_workflow
-    input_schema: "schemas/order_input.json"
-    output_schema: "schemas/order_output.json"
-    max_concurrency: 3
-    timeout_ms: 30000
-    dependencies:
-      - authentication
-      - shopping_cart
-    review_capabilities:
-      - data_consistency
-      - concurrency_safety
-      - transaction_integrity
-
-  expert_payment:
-    role: "expert"
-    module: "payment_integration"
-    version: "1.0.0"
-    capabilities:
-      - payment_gateway
-      - idempotency
-      - reconciliation
-      - refund_handling
-    input_schema: "schemas/payment_input.json"
-    output_schema: "schemas/payment_output.json"
-    max_concurrency: 3
-    timeout_ms: 30000
-    dependencies:
-      - authentication
-      - order_system
-    review_capabilities:
-      - financial_accuracy
-      - compliance_check
-      - idempotency_validation
-
-  expert_notification:
-    role: "expert"
-    module: "notification_service"
-    version: "1.0.0"
-    capabilities:
-      - email_notification
-      - sms_notification
-      - push_notification
-      - template_management
-    input_schema: "schemas/notification_input.json"
-    output_schema: "schemas/notification_output.json"
-    max_concurrency: 5
-    timeout_ms: 30000
-    dependencies:
-      - authentication
-    review_capabilities:
-      - delivery_reliability
-      - template_validation
-      - rate_limiting
-
-  expert_report:
-    role: "expert"
-    module: "data_reporting"
-    version: "1.0.0"
-    capabilities:
-      - data_aggregation
-      - chart_generation
-      - export_formats
-      - scheduled_reports
-    input_schema: "schemas/report_input.json"
-    output_schema: "schemas/report_output.json"
-    max_concurrency: 3
-    timeout_ms: 30000
-    dependencies:
-      - authentication
-      - order_system
-    review_capabilities:
-      - data_accuracy
-      - query_performance
-      - export_integrity
+      - endpoint_consistency
+      - input_validation
+      - error_response_completeness
 ```
 
 ---
@@ -208,26 +124,14 @@ agents:
 
 ```mermaid
 graph LR
-    CS["Codex 主管"] --> SP["Superpowers"]
+    CS["Codex Supervisor"] --> SP["Superpowers"]
     SP --> PA["Prompt Agent"]
-    SP --> EX1["认证专家"]
-    SP --> EX2["商品专家"]
-    SP --> EX3["购物车专家"]
-    SP --> EX4["订单专家"]
-    SP --> EX5["支付专家"]
-    SP --> EX6["通知专家"]
-    SP --> EX7["报表专家"]
+    SP --> EX1["Auth Expert"]
+    SP --> EX2["Data Processing Expert"]
+    SP --> EX3["API Integration Expert"]
 
     EX2 --> EX1
     EX3 --> EX1
-    EX3 --> EX2
-    EX4 --> EX1
-    EX4 --> EX3
-    EX5 --> EX1
-    EX5 --> EX4
-    EX6 --> EX1
-    EX7 --> EX1
-    EX7 --> EX4
 
     style CS fill:#fff3e0,stroke:#e65100
     style SP fill:#fce4ec,stroke:#c62828
@@ -235,10 +139,6 @@ graph LR
     style EX1 fill:#e3f2fd,stroke:#1565c0
     style EX2 fill:#e3f2fd,stroke:#1565c0
     style EX3 fill:#e3f2fd,stroke:#1565c0
-    style EX4 fill:#e3f2fd,stroke:#1565c0
-    style EX5 fill:#e3f2fd,stroke:#1565c0
-    style EX6 fill:#e3f2fd,stroke:#1565c0
-    style EX7 fill:#e3f2fd,stroke:#1565c0
 ```
 
 ---

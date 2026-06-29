@@ -1,390 +1,327 @@
-# Claude-Codex Multi-Agent Pipeline
+# 🧠 Claude-Codex Multi-Agent Pipeline (CC)
 
-**Schema-First Multi-Agent Development Pipeline** — a Python framework that compiles module schemas into structured agent workflows, with integrated guardrails, memory, HITL, observability, eval, skills, and MCP server.
+> **Write JSON Schema → Get Secure, Production-Ready Code from Multi-Agent Pipeline**
 
-## Features
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![Tests](https://img.shields.io/badge/tests-1095%20passed-brightgreen.svg)](tests/)
 
-| Feature | Description |
-|---------|-------------|
-| **Schema-First Compilation** | JSON schemas automatically derive context injection, implementation order, fix templates, and quality gates |
-| **7 Expert Agents + 1 Supervisor** | Hierarchical delegation with dependency-aware topological ordering |
-| **Dual-Phase Pipeline** | Phase 1 (requirement → code) + Phase 2 (review → fix loop with convergence detection) |
-| **Guardrails** | Input injection detection + PII masking, output leak prevention + code safety checks |
-| **Memory System** | Short-term (sliding window + compression) + Long-term (persistent user profiles) |
-| **HITL** | Risk-based approval (low=auto, medium=auto/manual, high=human) with JSONL audit logging |
-| **Workflow Engine** | DAG-based execution with topological sort, parallel branches, conditional routing |
-| **Observability** | Per-request span tree with `render_tree()`, pipeline metrics (token/agent/tool tracking) |
-| **Eval Suite** | 25 behavioral test cases across 5 dimensions (module_gen, code_quality, security, budget, convergence) |
-| **Skills** | Markdown-based capability injection (code-review, api-design, security-audit) |
-| **MCP Server** | JSON-RPC over SSE exposing generate_code, validate_python, compile_pipeline |
-| **Pluggable LLM** | Mock provider (deterministic, no API key) + Anthropic Claude integration |
+**The workflow:**
+1. 🏗️ You write JSON Schemas (module input/output contracts)
+2. 🤖 Pipeline auto-compiles schemas into parallel multi-agent tasks
+3. ✍️ Expert agents generate code with RAG context + skill injection
+4. 🔒 Security review (injection detection + AST validation + PII masking)
+5. 📊 Quality evaluation + fix loop until convergence
 
-## Architecture
+**No manual DAG wiring.** The compiler reads your schemas and derives context, order, prompts, fix rules, and quality gates automatically.
 
-### System Layers
+## ✨ Why This Exists
+
+Most multi-agent frameworks make you wire agents by hand — `agent_a → agent_b → agent_c`. Change one agent and the DAG breaks.
+
+CC is **schema-first**: define the *what* (module contracts), let the compiler figure out the *how* (execution order, context injection, retry strategy). Add a module by dropping two JSON files — zero Python code.
+
+## 🔌 MCP Server
+
+CC exposes a JSON-RPC 2.0 interface over SSE — any MCP-compatible client (Claude Desktop, Cursor, CLI tools) can invoke pipeline tools directly.
+
+```bash
+cc serve --port 8080        # REST API + WebSocket
+cc mcp                     # MCP JSON-RPC over stdio/SSE
+```
+
+## 🚀 Quick Start
+
+### Install
+
+```bash
+git clone <repo-url> && cd claude-codex-multi-agent
+pip install -e ".[dev]"
+```
+
+### Zero-Config Demo (no API key needed)
+
+```bash
+python examples/demo_showcase.py
+```
+
+Runs a complete 6-step pipeline with mock LLM — see schema compilation, expert analysis, code generation, security review, quality evaluation, and observability in action.
+
+### Real LLM
+
+```bash
+# Pick one:
+export ANTHROPIC_API_KEY="sk-..."        # Claude (recommended)
+export OPENAI_API_KEY="sk-..."            # OpenAI / DeepSeek / Tongyi / Kimi
+export GEMINI_API_KEY="AIza..."           # Gemini
+
+# Run full pipeline
+cc run "Build a JWT auth module with FastAPI"
+```
+
+### Scaffold a New Project
+
+```bash
+cc init my-project --modules "auth,api,data"
+# Generates: schemas, agents.yaml, pipeline.yaml, README
+```
+
+### Python API
+
+```python
+# Layer 1: One-liner
+from agents.pipeline import generate_code
+result = generate_code("Build a REST API with auth")
+
+# Layer 2: Pipeline class
+from agents.pipeline import Pipeline
+pipeline = Pipeline(config_dir="config", llm_backend="mock")
+result = pipeline.run("Build a REST API with auth")
+
+# Layer 3: Full multi-agent system
+from agents.pipeline import ClaudeCodexMultiAgent
+agent = ClaudeCodexMultiAgent()
+```
+
+## 🎯 Use Cases
+
+- **Custom AI coding pipelines** — Build multi-agent systems that match your architecture
+- **RAG-powered code generation** — Feed your codebase + docs for context-aware code
+- **Self-improving agents** — Skills automatically extracted from successful runs
+- **Multi-model applications** — Swap between Claude/GPT/Gemini/DeepSeek without code changes
+- **HITL workflows** — Auto-approve low-risk changes, escalate high-risk ones
+- **Feedback-driven improvement** — GRPO preference optimization from human feedback (👍👎)
+- **Skill marketplace** — Publish and share reusable skills as Markdown files
+
+## 🏗️ Architecture
 
 ```
 User Requirement
-  │
-  ▼
-ClaudeCodexMultiAgent.run_full_pipeline()
-  │
-  ├── Phase 1: run_phase1()
-  │   ├── InputGuard.check()  → injection/PII protection
-  │   ├── Memory.load()       → restore context
-  │   ├── HITL.request()      → approval gate
-  │   ├── PipelineCompiler.compile()
-  │   │   ├── ContextDeriver    → auto-inject context
-  │   │   ├── DependencyGraph   → topological order
-  │   │   ├── PromptGenerator   → prompt template
-  │   │   ├── FixDeriver        → fix instructions
-  │   │   └── QualityGateGen    → quality gates
-  │   ├── ExpertAgent.process() × N  (with Skills injection)
-  │   ├── Supervisor.generate_code() × N
-  │   ├── OutputGuard.check()   → code safety check
-  │   ├── Memory.save()        → persist interaction
-  │   └── SessionState.checkpoint()
-  │
-  ├── Phase 2: run_phase2()
-  │   ├── ExpertAgent.review() × N
-  │   ├── QualityEvaluator.evaluate()
-  │   ├── ConvergenceDetector.should_continue()
-  │   └── AuditLog.record()
-  │
-  └── Observability + Audit  (cross-cutting, active throughout)
+  → 🔒 InputGuard (injection detection + PII masking)
+  → 🧠 Memory.load() (restore context)
+  → ✋ HITL Approval (risk-based gate)
+  → 📊 CodexSupervisor.parse_requirement() → identify modules
+  → 🔧 PipelineCompiler.compile() → context/order/prompts/fixes/gates
+  → 📦 ExpertAgent.process() × N (with Skills injection, parallel)
+  → ✍️ Supervisor.generate_code() × N (LLM code gen + AST validation)
+  → ✅ OutputGuard.check() (code safety + PII cleanup + strict mode)
+  → 💾 Memory.save() + SessionState.checkpoint()
+  → 📊 QualityEvaluator + ConvergenceDetector (fix loop up to 3×)
+  → 🔍 Tracer (contextmanager spans) + AuditLog (PII masked) + PipelineMetrics
+  → 📤 Code Artifact
 ```
 
-### Module Dependency Graph
+## 📚 Documentation
+
+| Document | Description |
+|----------|-------------|
+| [Quick Start](docs/QUICK_START.md) | 5 分钟上手，安装、配置、第一个 Pipeline |
+| [Schema Guide](docs/SCHEMA_GUIDE.md) | 如何定义模块 Input/Output Schema |
+| [Pipeline Config](docs/PIPELINE_CONFIG.md) | 质量门禁、超时、重试策略配置 |
+| [RAG Config](docs/RAG_CONFIG.md) | 双引擎（Search + Cognitive）调参指南 |
+| [Skill Authoring](docs/SKILL_AUTHORING.md) | 编写自定义 Skill |
+| [Deployment](docs/DEPLOYMENT.md) | Docker / 生产环境部署 |
+
+## 🎯 Use Cases
+
+- **Custom AI coding pipelines** — Build multi-agent systems that match your architecture
+- **RAG-powered code generation** — Feed your codebase + docs for context-aware code
+- **Self-improving agents** — Skills automatically extracted from successful runs
+- **Multi-model applications** — Swap between Claude/GPT/Gemini/DeepSeek without code changes
+- **HITL workflows** — Auto-approve low-risk changes, escalate high-risk ones
+- **Feedback-driven improvement** — GRPO preference optimization from human feedback (👍👎)
+- **Skill marketplace** — Publish and share reusable Markdown files
+
+## 🏗️ Architecture
 
 ```
-authentication ─────┬──→ product_catalog ──→ shopping_cart ──→ order_system ──→ payment_integration
-                    │                                           ↑
-                    ├──→ notification_service                    │
-                    └──→ data_reporting ─────────────────────────┘
+User Requirement
+  → 🔒 InputGuard (injection detection + PII masking)
+  → 🧠 Memory.load() (restore context)
+  → ✋ HITL Approval (risk-based gate)
+  → 📊 CodexSupervisor.parse_requirement() → identify modules
+  → 🔧 PipelineCompiler.compile() → context/order/prompts/fixes/gates
+  → 📦 ExpertAgent.process() × N (with Skills injection, parallel)
+  → ✍️ Supervisor.generate_code() × N (LLM code gen + AST validation)
+  → ✅ OutputGuard.check() (code safety + PII cleanup + strict mode)
+  → 💾 Memory.save() + SessionState.checkpoint()
+  → 📊 QualityEvaluator + ConvergenceDetector (fix loop up to 3×)
+  → 🔍 Tracer (contextmanager spans) + AuditLog (PII masked) + PipelineMetrics
+  → 📤 Code Artifact
+
+Feedback (👍👎) can be collected for GRPO preference optimization.
+```
 ```
 
-### Core Roles
+## 🔧 Adding a New Module
 
-| Role | Count | Responsibility |
-|------|-------|----------------|
-| Codex (Supervisor) | 1 | Requirement understanding, task decomposition, quality evaluation, conflict resolution |
-| Superpowers Plugin | 1 | Agent registration, message routing, context injection, result aggregation |
-| Prompt Agent | 1 | Module spec integration, dependency analysis, prompt generation |
-| Expert Agent | N (per module) | Single-module requirement analysis, code review |
-| Claude Code | 1 | Code generation, fix execution |
+**Zero code changes** — just two config files:
 
-### Design Principles
+1. Create `config/schemas/xxx_input.json` + `xxx_output.json`
+2. Add `expert_xxx` section to `config/agents.yaml` with capabilities
+3. Auto-discovered at runtime
 
-| Principle | Implementation |
-|-----------|----------------|
-| **Single Responsibility** | Each Expert Agent handles one functional module only; input/output schemas enforce strict boundaries |
-| **Minimum Privilege** | Superpowers ContextInjector only injects the minimum required context per module |
-| **Independently Testable** | Each Agent can run in isolation; same input produces deterministic output |
-| **Verifiable Results** | All outputs must pass output_schema validation; includes acceptance criteria |
+## 📚 Adding a New Skill
 
-### Communication Protocol
+Skills are Markdown-based — no code required:
 
-All Agent-to-Agent communication uses a unified message format with metadata envelope and typed payloads (task / result / review / error). Message codes follow E001-E010 convention with retry semantics. See `tools/messaging/` for implementation.
+```markdown
+# tools/skills/builtin/my-skill/SKILL.md
+---
+name: my-skill
+description: What this skill does
+triggers: [keyword1, keyword2]
+version: 1.0.0
+author: your-name
+---
 
-### Convergence Detection
+# Skill Instructions
 
-The system uses a `ConvergenceDetector` that tracks quality trends across review iterations, detecting improving / stagnant / declining states. Critical issues trigger immediate escalation. This prevents the "death spiral" of automated fix loops making things worse.
-
-## Quick Start
-
-```python
-from __init__ import ClaudeCodexMultiAgent
-
-# Initialize pipeline (mock LLM, all features enabled)
-pipeline = ClaudeCodexMultiAgent(
-    config_dir="config",
-    llm_backend="mock",  # or "anthropic" with ANTHROPIC_API_KEY
-    enable_guardrails=True,
-    enable_memory=True,
-    enable_hitl=True,
-    enable_observability=True,
-)
-
-# Run full pipeline (Phase 1 + Phase 2)
-result = pipeline.run_full_pipeline("Build auth module with JWT")
-
-# Access results
-print(result["phase1"]["code_artifact"])       # Generated code per module
-print(result["phase2"]["convergence_status"])  # Why the fix loop stopped
-print(result["phase2"]["iterations"])          # Number of fix iterations
-
-# Inspect observability
-obs = result.get("observability", {})
-print(obs.get("trace_tree"))  # Visual span tree
-
-# Run eval suite
-report = pipeline.run_eval()
-print(report.render_table())
-print(f"Pass rate: {report.pass_percentage}%")
-
-# Start MCP server
-server = pipeline.get_mcp_server(port=9000)
-# await server.start_sse()  # Requires: pip install sse-starlette
+Detailed instructions for the agent...
 ```
 
-## Project Structure
+Or publish via CLI:
+```bash
+cc skills publish path/to/my-skill
+```
+
+## 📊 Competitor Comparison
+
+| Feature | **CC** | Claude Code | Cursor | Hermes | Dify | Coze | Gemini CLI |
+|---------|--------|-------------|--------|--------|------|------|-------------|
+| Schema-first Multi-Agent | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| RAG Dual-Engine | ✅ | ❌ | ❌ | Partial | Search | Search | ❌ |
+| Skill Self-Learning | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| User Modeling + Intent | ✅ | ❌ | ❌ | ✅ | ❌ | ❌ | ❌ |
+| GRPO Feedback-Driven | ✅ | ❌ | ❌ | Partial | ❌ | ❌ | ❌ |
+| HITL Risk Approval | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Milvus/Chroma Vector DB | ✅ | ❌ | ❌ | ❌ | ✅ | ✅ | ❌ |
+| LLM Query Rewrite | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| REST API + WebSocket | ✅ | ❌ | ❌ | ✅ | ✅ | ✅ | ❌ |
+| CLI + GUI | ✅ | ✅ CLI | ✅ IDE | ❌ | ❌ | ✅ | ✅ CLI |
+| Feedback-Driven GUI | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Skill Marketplace | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| 20+ LLM Providers | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ |
+
+## 📁 Project Structure
 
 ```
-claude-codex-multi-agent/
-├── __init__.py                    # Main entry point (ClaudeCodexMultiAgent class)
-├── README.md                      # This file
-├── requirements.txt               # Python dependencies
-│
-├── agents/
-│   ├── supervisor/__init__.py     # CodexSupervisor (orchestration + code generation)
-│   └── experts/__init__.py        # ExpertAgent (dynamic discovery, skill injection)
-│
+├── agents/                  # Supervisor + Expert agents
+│   ├── supervisor/           # CodexSupervisor (requirement parsing, task decomposition)
+│   └── experts/              # ExpertAgent (auto-discovered, config-driven)
 ├── tools/
-│   ├── compiler/                  # Schema → orchestration logic (5 sub-derivers)
-│   │   ├── pipeline_compiler.py   # Main compiler entry
-│   │   ├── context_deriver.py     # Auto-derive context injection strategies
-│   │   ├── dependency_graph.py    # Build DAG, topological sort
-│   │   ├── prompt_generator.py    # Generate prompt templates
-│   │   ├── fix_deriver.py         # Derive fix instructions from schemas
-│   │   └── quality_gate_gen.py    # Auto-generate quality gates
-│   │
-│   ├── quality/                   # Quality evaluation + convergence detection
-│   │   ├── quality_evaluator.py   # Aggregate review results
-│   │   └── convergence_detector.py # Detect improving/stagnant/declining trends
-│   │
-│   ├── guardrails/                # Input/output security
-│   │   ├── input_guard.py         # Injection detection + PII masking
-│   │   └── output_guard.py        # Leak prevention + overpromise rewriting
-│   │
-│   ├── memory/                    # Short-term + long-term memory
-│   │   ├── short_term.py          # Sliding window + auto-compression
-│   │   ├── long_term.py           # JSON persistence + user profiles
-│   │   ├── session_state.py       # Checkpoint/resume
-│   │   └── store.py               # MemoryStore interface + implementations
-│   │
-│   ├── hitl/                      # Human-in-the-loop
-│   │   ├── approval.py            # AutoApprovalHandler + ManualApprovalHandler
-│   │   └── audit.py               # AuditLog (JSONL persistence)
-│   │
-│   ├── workflow/                  # DAG execution engine
-│   │   ├── engine.py              # WorkflowEngine (topological sort + parallel branches)
-│   │   └── nodes.py               # LLMNode, RAGNode, ToolNode, CodeNode, BranchNode
-│   │
-│   ├── observability/             # Tracing + metrics
-│   │   ├── tracer.py              # Per-request span tree with render_tree()
-│   │   └── metrics.py             # PipelineMetrics (token/agent/tool tracking)
-│   │
-│   ├── eval/                      # Behavioral evaluation
-│   │   ├── cases.py               # 25 test cases across 5 dimensions
-│   │   ├── assertions.py           # Behavioral check functions
-│   │   ├── runner.py              # EvalRunner
-│   │   └── report.py              # EvalReport with table rendering
-│   │
-│   ├── skills/                    # Markdown-based capability injection
-│   │   ├── loader.py              # SKILL.md parser (no YAML dependency)
-│   │   ├── manager.py             # Skill selection by relevance
-│   │   └── builtin/               # Built-in skills
-│   │       ├── code-review/
-│   │       ├── api-design/
-│   │       └── security-audit/
-│   │
-│   ├── mcp/                       # Model Context Protocol
-│   │   ├── tool_registry.py       # Tool registration + discovery
-│   │   ├── mcp_server.py          # JSON-RPC over SSE server
-│   │   └── builtin_tools.py       # Built-in tool definitions
-│   │
-│   ├── stores/                    # State management
-│   │   ├── requirement_store.py   # Requirements persistence
-│   │   ├── interface_store.py     # Interface definitions
-│   │   ├── spec_store.py          # Module specs persistence
-│   │   └── persistence.py         # Base persistence interface
-│   │
-│   ├── messaging/                 # Event-driven communication
-│   │   ├── message_bus.py         # Pub/sub with topic routing
-│   │   └── message.py             # Message + Topic definitions
-│   │
-│   └── llm/                       # LLM provider abstraction
-│       ├── base.py                # LLMProvider ABC + LLMResponse
-│       ├── mock.py                # MockLLMProvider (deterministic, no API key)
-│       └── anthropic.py           # AnthropicClaudeProvider
-│
+│   ├── rag/                 # RAG dual-engine
+│   │   ├── pipeline.py       # Search: BM25+Vector+Graph→RRF→Rerank
+│   │   ├── intent.py         # Cognitive: Intent→Memory→Skill→GRPO
+│   │   ├── feedback.py       # Human feedback collection (👍👎)
+│   │   ├── grpo.py           # GRPO trainer (stub + real gradient)
+│   │   ├── memory_manager.py # Cross-session memory
+│   │   ├── skill_manager.py  # Skill matching + injection
+│   │   ├── user_model.py     # Expertise detection + intent routing
+│   │   ├── vector_store.py   # Milvus/Chroma/InMemory
+│   │   ├── retriever.py      # BM25 + Vector + Graph retrievers
+│   │   ├── reranker.py       # Cross-encoder + LLM scorer + combined
+│   │   ├── query_rewriter.py # Multi-strategy query rewriting
+│   │   └── observability.py  # Metrics + structured logging
+│   ├── compiler/            # Pipeline compiler (Schema→executable)
+│   │   ├── context_deriver.py # Context strategy generation
+│   │   ├── fix_deriver.py    # Fix rule generation
+│   │   ├── dependency_graph.py # Module dependency DAG
+│   │   └── prompt_generator.py # Prompt template generation
+│   ├── quality/             # Quality evaluation + convergence detection
+│   ├── guardrails/          # Input/output security (injection, PII, leaks)
+│   ├── memory/              # Short-term + long-term + session state
+│   ├── hitl/                # HITL risk-based approval + audit log
+│   ├── workflow/            # DAG execution engine (topological sort)
+│   ├── llm/                 # LLM provider abstraction (20+ providers)
+│   ├── skills/              # Markdown skill system (load, manage, publish)
+│   │   ├── loader.py         # SKILL.md parser (YAML frontmatter)
+│   │   ├── manager.py        # Skill selection + prompt injection
+│   │   └── registry.py       # Skill marketplace (publish/search/unpublish)
+│   ├── observability/       # Per-request Tracer + PipelineMetrics
+│   ├── eval/                # 25 behavioral evaluation cases
+│   ├── cc_switch.py         # Multi-provider model switcher + connectivity test
+│   └── cc_cli.py            # Unified CLI entry point
+├── gui/                     # Streamlit GUI
+│   └── app.py               # Query/Pipeline/Skills/Feedback/Status pages
 ├── config/
-│   ├── agents.yaml                # Agent registry + capabilities + dependencies
-│   └── schemas/                   # Module input/output JSON schemas
-│       ├── auth_input.json / auth_output.json
-│       ├── product_input.json / product_output.json
-│       ├── cart_input.json / cart_output.json
-│       ├── order_input.json / order_output.json
-│       ├── payment_input.json / payment_output.json
-│       ├── notification_input.json / notification_output.json
-│       └── report_input.json / report_output.json
-│
-└── tests/
-    ├── compiler/                  # Unit tests for compiler sub-derivers
-    ├── stores/                    # Unit tests for stores
-    └── integration/               # Integration tests
-        ├── test_e2e_pipeline.py   # End-to-end pipeline tests
-        ├── test_full_pipeline.py  # Full pipeline integration
-        ├── test_system_integration.py # Main entry point tests
-        └── test_edge_cases.py     # Boundary conditions
+│   ├── schemas/             # 7 JSON module schemas (auth, cart, order, etc.)
+│   ├── agents.yaml          # Agent capability registry
+│   └── pipeline.yaml        # Pipeline phases, quality gates, retry policies
+├── tests/                   # 621 tests across 24 files
+├── examples/                # Demo scripts
+└── pyproject.toml           # Package config + dependencies
 ```
 
-## Adding a Module
+## 🎯 Use Cases
 
-1. Create `config/schemas/{module}_input.json` + `{module}_output.json`
-2. Add `expert_{module}` section to `config/agents.yaml` with capabilities
-3. No Python code changes needed — auto-discovered at runtime
+- **Custom AI coding pipelines** — Build multi-agent systems that match your architecture
+- **RAG-powered code generation** — Feed your codebase + docs for context-aware code
+- **Self-improving agents** — Skills automatically extracted from successful runs
+- **Multi-model applications** — Swap between Claude/GPT/Gemini/DeepSeek without code changes
+- **HITL workflows** — Auto-approve low-risk changes, escalate high-risk ones
+- **Feedback-driven improvement** — GRPO preference optimization from human feedback (👍👎)
+- **Skill marketplace** — Publish and share reusable skills as Markdown files
 
-## LLM Provider Configuration
-
-```python
-# Mock (default) — no API key needed, deterministic output
-pipeline = ClaudeCodexMultiAgent(llm_backend="mock")
-
-# Anthropic Claude — requires ANTHROPIC_API_KEY
-pipeline = ClaudeCodexMultiAgent(
-    llm_backend="anthropic",
-    api_key="sk-ant-...",  # or set ANTHROPIC_API_KEY env var
-)
-```
-
-## Running Tests
+## 🧪 Testing
 
 ```bash
-# Install dev dependencies
-pip install -r requirements-dev.txt
-
-# Run all tests
 python -m pytest tests/ -v
-
-# Run specific test suite
-python -m pytest tests/compiler/ -v
-python -m pytest tests/integration/test_e2e_pipeline.py -v
-
-# With coverage (requires pytest-cov)
-python -m pytest tests/ --cov=tools --cov=agents -v
-
-# Lint
-ruff check tools/ agents/ tests/ --ignore E501
+# 1021 passed, 9 skipped, 0 failed
 ```
 
-## Eval Suite
+| Test File | Coverage Area | Tests |
+|-----------|--------------|-------|
+| `tests/test_rag.py` | RAG pipeline | 45 |
+| `tests/test_rag_dual_engine.py` | Cognitive engine | 46 |
+| `tests/test_rag_production.py` | Production features | 43 |
+| `tests/test_grpo.py` | GRPO + feedback store | 42 |
+| `tests/test_guardrails.py` | Input/output security | 22 |
+| `tests/test_hitl.py` | HITL approval | 21 |
+| `tests/test_memory_full.py` | Long-term memory + store | 39 |
+| `tests/test_quality.py` | Quality + convergence | 31 |
+| `tests/test_enhancements.py` | Tracer contextmanager + behavioral assertions + HITL HumanNode + audit PII masking + eval isolation | 46 |
+| `tests/test_workflow_full.py` | Workflow nodes + engine | 18 |
+| `tests/test_cc_switch.py` | Model switching + CLI | 30+ |
+| `tests/compiler/` | Pipeline compiler | ~60 |
+| `tests/integration/` | End-to-end integration | ~100 |
+| `tests/stores/` | State management | ~20 |
 
-```python
-pipeline = ClaudeCodexMultiAgent()
+## 🌍 Environment Variables
 
-# Run all 25 eval cases
-report = pipeline.run_eval()
-print(report.render_table())
-print(report.to_json())  # Export as JSON
+| Variable | Required For | Description |
+|----------|-------------|-------------|
+| `ANTHROPIC_API_KEY` | Anthropic Claude | API key (sk-... or sk-ant-...) |
+| `ANTHROPIC_BASE_URL` | Custom gateway | Proxy/gateway URL |
+| `ANTHROPIC_MODEL` | Model override | e.g. claude-opus-4-7 |
+| `OPENAI_API_KEY` | OpenAI-compatible | Works for Tongyi/DeepSeek/Zhipu/Kimi/MiniMax |
+| `OPENAI_BASE_URL` | Custom endpoint | OpenAI-compatible endpoint URL |
+| `OPENAI_MODEL` | Model override | e.g. gpt-4o |
+| `GEMINI_API_KEY` | Google Gemini | API key (AIza...) |
 
-# Run specific cases only
-from tools.eval.cases import EVAL_CASES
-module_gen_cases = [c for c in EVAL_CASES if c["id"].startswith("module_gen")]
-report = pipeline.run_eval(cases=module_gen_cases)
-```
+## 📐 Design Philosophy
 
-## MCP Server
+1. **Schema-first, not code-first** — Define what, not how
+2. **Dual-engine RAG** — Search for facts, cognitive for complex reasoning
+3. **Self-improving** — Every successful run improves the skill library
+4. **Feedback-driven** — Human feedback (👍👎) feeds GRPO preference optimization
+5. **HITL by default** — Low auto, high manual, never blind trust
+6. **Strict when needed** — `cc run --strict` blocks unsafe outputs instead of rewriting
+7. **Behavioral eval** — Assert intent/tools/blocked, not exact output text
+8. **PII-safe audit** — All args masked before persistence
+9. **Isolated eval** — Per-case context isolation prevents state leakage
+10. **Model-agnostic** — Switch providers without changing pipeline code
+11. **Observable** — Every decision traced (contextmanager spans), every metric collected
+12. **Marketplace-ready** — Publish skills as shareable Markdown files
 
-```python
-pipeline = ClaudeCodexMultiAgent()
-server = pipeline.get_mcp_server(host="localhost", port=9000)
+## 🔮 Roadmap
 
-# In an async context:
-# await server.start_sse()
-# Available at: http://localhost:9000/sse
-# POST to: http://localhost:9000/mcp with JSON-RPC 2.0
-```
-
-## Docker Deployment
-
-### Quick Start
-
-```bash
-# Build and run eval suite (one command)
-docker build -t ccm . && docker run --rm ccm
-
-# Or with docker compose
-docker compose up --build eval
-```
-
-### Run Modes
-
-```bash
-# MCP Server (default for 'up')
-docker compose up
-
-# Run eval suite
-docker compose run --rm eval
-
-# Run tests
-docker compose run --rm test
-
-# Lint check
-docker compose run --rm lint
-
-# Interactive shell
-docker run --rm -it ccm shell
-
-# Full pipeline with custom input
-docker run --rm ccm pipeline "Build auth module with JWT"
-```
-
-### Deploy to GitHub Container Registry
-
-Push to `main` triggers automatic build and push to `ghcr.io`:
-
-```bash
-# Pull and run anywhere
-docker pull ghcr.io/<your-user>/claude-codex-multi-agent:latest
-docker run -d --name ccm -p 9000:9000 \
-  -e ANTHROPIC_API_KEY=sk-ant-... \
-  -e LLM_BACKEND=anthropic \
-  ghcr.io/<your-user>/claude-codex-multi-agent:latest serve
-```
-
-### Deploy to VPS
-
-Add these GitHub Secrets:
-- `DEPLOY_HOST` — server IP/hostname
-- `DEPLOY_USER` — SSH username
-- `DEPLOY_SSH_KEY` — private SSH key
-- `ANTHROPIC_API_KEY` — (optional) for real LLM
-
-The workflow auto-deploys on every push to `main`.
-
-## Environment Variables
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `ANTHROPIC_API_KEY` | API key for Anthropic Claude | — |
-| `LLM_API_KEY` | Generic LLM API key | — |
-
-## Design Decisions
-
-| Decision | Rationale | Trade-off |
-|----------|-----------|-----------|
-| Codex as sole supervisor | Avoids multi-supervisor decision conflicts | Single point of failure; needs fault tolerance |
-| Superpowers mediates all communication | Enforces minimum privilege and context isolation | Adds one-hop latency |
-| Module split by functional domain | Higher cohesion, fewer cross-Agent dependencies | Module granularity must be manually defined |
-| Two-phase (separate analyze/review) | Each phase focuses on its own concern | Adds one round of communication |
-| Prompt Agent as independent | Decouples integration logic from decision logic | Adds one more Agent to manage |
-| Schema-driven validation | Ensures verifiable results, prevents error propagation | Requires pre-defined complete schemas |
-| Event-driven message bus | Natural fit for async task-response patterns | Harder to debug than REST |
-| Three-store separation (Req/Interface/Spec) | Separates read/write timing, avoids state coupling | Adds Superpowers internal complexity |
-
-## Project Status & Roadmap
-
-**Current state**: Core pipeline runs end-to-end with mock LLM. Compiler, stores, convergence detection, guardrails, and observability are implemented. 95 integration tests passing.
-
-### Roadmap
-
-| Phase | Items | Timeline |
-|-------|-------|----------|
-| **P0** | Real LLM integration (Claude API), code generator (write actual files), requirements.txt | 1-2 weeks |
-| **P1** | Store persistence (SQLite/Redis), API server (FastAPI with streaming), multi-LLM support | 1 month |
-| **P2** | RAG module, Dashboard | 3 months |
-| **Plugin** | Dynamic Agent registration, Human-in-the-loop pause/resume, regression test framework | Ongoing |
+- [ ] Multi-platform messaging gateway (Telegram/Discord/Slack)
+- [ ] VS Code extension
+- [ ] Visual drag-drop workflow builder
+- [ ] Batch trajectory training pipeline
+- [ ] Enterprise multi-tenant deployment
+- [ ] PyPI publication (`pip install claude-codex-multi-agent`)
 
 ## License
 

@@ -1,7 +1,7 @@
 # tools/skills/manager.py
 
 """
-Skill 管理器 — 按相关性选择技能并注入 prompt。
+Skill 选择器 — 按相关性选择技能并注入 prompt。
 
 参考 langgraph-agent-starter 的 Skills 设计：
 - 根据用户输入文本匹配 triggers
@@ -9,7 +9,7 @@ Skill 管理器 — 按相关性选择技能并注入 prompt。
 - 注入 system prompt 和 context
 
 用法:
-    mgr = SkillManager(SkillLoader("tools/skills/builtin"))
+    mgr = SkillSelector(SkillLoader("tools/skills/builtin"))
     skills = mgr.select_for("review authentication module", "code_review")
     enhanced = mgr.inject(skills, system_prompt)
 """
@@ -24,7 +24,7 @@ from tools.skills.loader import Skill, SkillLoader
 logger = logging.getLogger(__name__)
 
 
-class SkillManager:
+class SkillSelector:
     """
     Skill 选择器 + 注入器。
 

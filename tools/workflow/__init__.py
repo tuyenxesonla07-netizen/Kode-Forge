@@ -6,7 +6,9 @@
 支持 DAG 执行、并行分支、条件路由、人工审批节点。
 
 tools/workflow/
-├── engine.py    — 工作流执行引擎
+├── engine.py    — 工作流执行引擎（核心 + 上下文 + 生命周期）
+├── execution.py — 执行策略（恢复、质量循环、熔断器、结果汇总）
+├── messaging.py — 消息总线（Topic、Message、MessageBus）
 └── nodes.py     — 节点类型定义
 
 用法:
@@ -19,6 +21,13 @@ tools/workflow/
 """
 
 from tools.workflow.engine import WorkflowEngine, Workflow, WorkflowNode, WorkflowResult
+from tools.workflow.execution import (
+    RecoveryManager, RetryPolicy, RecoveryResult,
+    QualityLoop, QualityLoopResult,
+    AgentResult, ResultAggregator,
+    CircuitBreaker, CircuitState, CircuitBreakerOpenError,
+)
+from tools.workflow.messaging import Topic, Message, MessageBus
 from tools.workflow.nodes import LLMNode, RAGNode, ToolNode, CodeNode, BranchNode
 
 
@@ -115,7 +124,17 @@ def build_pipeline_workflow(compiled_pipeline, llm_provider=None,
 
 
 __all__ = [
+    # Core engine
     "WorkflowEngine", "Workflow", "WorkflowNode", "WorkflowResult",
+    # Nodes
     "LLMNode", "RAGNode", "ToolNode", "CodeNode", "BranchNode",
+    # Execution strategies
+    "RecoveryManager", "RetryPolicy", "RecoveryResult",
+    "QualityLoop", "QualityLoopResult",
+    "AgentResult", "ResultAggregator",
+    "CircuitBreaker", "CircuitState", "CircuitBreakerOpenError",
+    # Messaging
+    "Topic", "Message", "MessageBus",
+    # Builder
     "build_pipeline_workflow",
 ]

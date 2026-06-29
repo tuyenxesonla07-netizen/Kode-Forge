@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -61,6 +62,10 @@ class AuditLog:
                 - approval: 审批结果
                 - latency_ms: 延迟
         """
+        # 自动脱敏 args 中的 PII
+        if "args" in event and isinstance(event["args"], dict):
+            event["args"] = self._mask_pii_in_args(event["args"])
+
         event.setdefault("time", datetime.now(timezone.utc).isoformat(timespec="seconds"))
         self._records.append(event)
         self._append_to_file(event)
@@ -139,3 +144,32 @@ class AuditLog:
 
     def __len__(self) -> int:
         return len(self._records)
+
+    # ── PII 脱敏 ──────────────────────────────────────────────────
+
+    _PII_PATTERNS = [
+        (re.compile(r"\b1[3-9]\d{9}\b"), "[PHONE]"),
+        (re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b"), "[EMAIL]"),
+        (re.compile(r"\b\d{6}(19|20)\d{2}(0[1-9]|1[0-2])(0[1-9]|[12]\d|3[01])\d{3}[\dXx]\b"), "[ID_CARD]"),
+        (re.compile(r"\bsk-[A-Za-z0-9]{10,}\b"), "[API_KEY]"),
+    ]
+
+    @classmethod
+    def _mask_pii_in_args(cls, args: dict) -> dict:
+        """对 args 字典中的 PII 进行脱敏"""
+        masked = {}
+        for key, value in args.items():
+            if isinstance(value, str):
+                masked[key] = cls._mask_pii(value)
+            elif isinstance(value, dict):
+                masked[key] = cls._mask_pii_in_args(value)
+            else:
+                masked[key] = value
+        return masked
+
+    @classmethod
+    def _mask_pii(cls, text: str) -> str:
+        """对字符串进行 PII 脱敏"""
+        for pattern, replacement in cls._PII_PATTERNS:
+            text = pattern.sub(replacement, text)
+        return text

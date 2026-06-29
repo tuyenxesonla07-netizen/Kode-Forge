@@ -1,0 +1,59 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "API Integration & Routing Input",
+  "description": "Input schema for API Integration & Routing module expert agent",
+  "type": "object",
+  "required": [
+    "requirement",
+    "constraints",
+    "dependencies"
+  ],
+  "properties": {
+    "requirement": {
+      "type": "string",
+      "description": "该模块的需求描述"
+    },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "技术约束列表"
+    },
+    "dependencies": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "依赖的外部模块列表"
+    },
+    "tech_stack": {
+      "type": "object",
+      "properties": {
+        "language": {
+          "type": "string"
+        },
+        "framework": {
+          "type": "string"
+        },
+        "database": {
+          "type": "string"
+        }
+      }
+    },
+    "compliance_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "合规要求列表"
+    },
+    "search_requirements": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "搜索/检索要求列表"
+    }
+  }
+}

@@ -1,6 +1,5 @@
 # 流水线配置
-
-> 定义双阶段流水线的执行步骤、超时策略和质量门禁。
+# 定义双阶段流水线的执行步骤、超时策略和质量门禁。
 
 ---
 
@@ -56,7 +55,7 @@ flowchart TB
 quality_gates:
   - name: "模块审查通过"
     metric: "all_modules_passed"
-    operator: "equals"
+    operator: "=="
     value: true
     blocking: true
 
@@ -74,13 +73,13 @@ quality_gates:
 
   - name: "无严重问题"
     metric: "critical_issues_count"
-    operator: "equals"
+    operator: "=="
     value: 0
     blocking: true
 
   - name: "接口一致性"
     metric: "interface_consistency"
-    operator: "equals"
+    operator: "=="
     value: true
     blocking: true
 ```

@@ -1,26 +1,28 @@
 # tools/observability/__init__.py
 
 """
-Observability — 全链路追踪 + 指标统计。
+Observability — pipeline telemetry (Tracer + PipelineMetrics).
 
-参考 customer-service-agent 的 Tracer：
-- 每次请求一条 trace，每个关键动作一个 span（支持嵌套）
-- span 的 attributes 记录决策依据
-- 支持 render_tree() 可视化决策链
+For production features (Webhook Alerter, Prometheus, JSON logging), use:
+    from tools.observability.production_observability import ...
 
-用法:
-    from tools.observability import Tracer
+Usage:
+    from tools.observability import Tracer, PipelineMetrics
 
     tracer = Tracer("pipeline_run")
-    with tracer.span("compile", modules=7):
-        with tracer.span("expert_analysis", agent="auth"):
+    with tracer.span_ctx("compile", modules=7):
+        with tracer.span_ctx("expert_analysis", agent="auth"):
             ...
-        with tracer.span("code_gen", module="auth"):
+        with tracer.span_ctx("code_gen", module="auth"):
             ...
     print(tracer.render_tree())
 """
 
-from tools.observability.tracer import Tracer
-from tools.observability.metrics import PipelineMetrics
+from tools.observability.pipeline_telemetry import (
+    Tracer,
+    AlertRule,
+    AlertManager,
+    PipelineMetrics,
+)
 
-__all__ = ["Tracer", "PipelineMetrics"]
+__all__ = ["Tracer", "AlertRule", "AlertManager", "PipelineMetrics"]

@@ -112,9 +112,15 @@ class OutputGuard:
                     issues=[f"检测到敏感信息泄漏风险（{pattern}），已替换为兜底回复"],
                 )
 
-        # 3. 越权承诺改写
+        # 3. 越权承诺改写/阻断
         for pattern, replacement in OVERPROMISE_PATTERNS:
             if re.search(pattern, text):
+                if self.strict:
+                    return OutputCheckResult(
+                        passed=False,
+                        text=FALLBACK_REPLY,
+                        issues=[f"严格模式：检测到越权承诺（{pattern}），已阻断输出"],
+                    )
                 text = re.sub(pattern, replacement, text)
                 issues.append(f"检测到越权承诺（{pattern}），已改写为合规表述")
 
@@ -124,10 +130,17 @@ class OutputGuard:
             text = masked
             issues.append(f"回复中包含 PII（{'/'.join(pii_found)}），已脱敏")
 
-        # 5. 代码安全检查（仅警告）
+        # 5. 代码安全检查
         if is_code:
             for pattern in CODE_DANGEROUS_PATTERNS:
                 if re.search(pattern, text):
+                    if self.strict:
+                        # 严格模式：危险代码直接阻断
+                        return OutputCheckResult(
+                            passed=False,
+                            text=FALLBACK_REPLY,
+                            issues=[f"严格模式：代码包含危险模式（{pattern}），已阻断输出"],
+                        )
                     issues.append(f"代码中包含危险模式（{pattern}），建议人工复核")
 
         return OutputCheckResult(passed=True, text=text, issues=issues)

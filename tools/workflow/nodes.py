@@ -39,6 +39,10 @@ class WorkflowNode:
     name: str = ""
     config: Dict[str, Any] = field(default_factory=dict)
     inputs: List[str] = field(default_factory=list)  # 上游节点 id 列表
+    version: str = "1.0.0"                           # 节点版本
+    permissions: List[str] = field(default_factory=list)  # 所需权限标签
+    side_effect: bool = False                         # 是否有副作用
+    idempotent: bool = False                          # 是否幂等
 
 
 class LLMNode:
@@ -61,11 +65,19 @@ class LLMNode:
         if not self.provider:
             return f"[LLMNode] {prompt}"
 
-        response = self.provider.complete(
-            prompt=prompt,
-            max_tokens=self.max_tokens,
-            temperature=self.temperature,
-        )
+        # 优先使用 acomplete（异步），回退到 complete（同步）
+        if hasattr(self.provider, 'acomplete'):
+            response = await self.provider.acomplete(
+                prompt=prompt,
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+            )
+        else:
+            response = self.provider.complete(
+                prompt=prompt,
+                max_tokens=self.max_tokens,
+                temperature=self.temperature,
+            )
         return response.content if response.success else f"Error: {response.error}"
 
 
@@ -119,13 +131,25 @@ class ToolNode:
 class CodeNode:
     """Python 代码执行节点（沙箱模式）"""
 
-    def __init__(self, code_template: str = ""):
+    def __init__(self, code_template: str = "", safe_mode: bool = False):
         self.code_template = code_template
+        self.safe_mode = safe_mode
 
     async def execute(self, inputs: dict) -> dict:
         code = self.code_template
         for key, value in inputs.items():
             code = code.replace(f"{{{{{key}}}}}", repr(value))
+
+        # 安全模式：AST 检查危险导入
+        if self.safe_mode:
+            from tools.quality.ast_validator import ASTValidator
+            validator = ASTValidator()
+            issues = validator.validate_dangerous_imports(code)
+            if issues:
+                return {
+                    "error": f"Code safety check failed: {issues[0].message}",
+                    "safety_issues": [i.message for i in issues],
+                }
 
         try:
             # 安全沙箱：只允许基本运算
@@ -162,3 +186,52 @@ class BranchNode:
             return {"branch": branch, "target": target}
         except Exception:
             return {"branch": "false", "target": self.branches.get("false", "")}
+
+
+class HumanNode:
+    """
+    人工审批节点 — 暂停执行等待人类确认。
+
+    参考 customer-service-agent 的 6 步执行管道第 4 步 (approval)。
+    当工作流执行到此节点时，会触发 HITL 审批流程：
+      1. 创建审批请求（包含操作描述和风险等级）
+      2. 等待人类通过 callback() 确认或拒绝
+      3. 根据审批结果继续或中止工作流
+
+    用法:
+        node = HumanNode(
+            prompt="确认删除用户数据？",
+            risk_level="high",
+            approval_handler=AutoApprovalHandler(),
+        )
+        result = await node.execute({"user_id": "U123"})
+        # result = {"approved": True/False, "approver": "auto"/"human_xxx"}
+    """
+
+    def __init__(self, prompt: str = "需要人工确认",
+                 risk_level: str = "high",
+                 approval_handler=None):
+        self.prompt = prompt
+        self.risk_level = risk_level
+        self.approval_handler = approval_handler
+
+    async def execute(self, inputs: dict) -> dict:
+        if not self.approval_handler:
+            # 无审批处理器时自动通过（降级模式）
+            return {"approved": True, "approver": "none", "prompt": self.prompt}
+
+        request_args = {**inputs, "_prompt": self.prompt}
+        result = self.approval_handler.request_approval(
+            tool_name=f"human_node_{self.prompt[:20]}",
+            args=request_args,
+            risk_level=self.risk_level,
+            context=inputs,
+        )
+
+        return {
+            "approved": result.approved,
+            "approver": result.approver,
+            "comment": result.comment,
+            "requires_human": result.requires_human,
+            "prompt": self.prompt,
+        }

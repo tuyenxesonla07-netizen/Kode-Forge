@@ -265,7 +265,7 @@ def create_expert_agents(
         schemas_dir: Schema 文件目录
         agents_config: agents.yaml 解析后的字典
         llm_provider: LLM Provider 实例
-        skill_manager: SkillManager 实例（可选，用于注入技能到 prompt）
+        skill_manager: SkillSelector 实例（可选，用于注入技能到 prompt）
 
     Returns:
         {module_name: ExpertAgent} 字典

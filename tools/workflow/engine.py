@@ -1,37 +1,232 @@
 # tools/workflow/engine.py
 
 """
-工作流执行引擎。
+工作流执行引擎 — 核心引擎 + 上下文管理 + 生命周期钩子。
 
-支持 DAG 拓扑排序执行、并行分支、条件路由。
-工作流定义格式为 JSON/YAML，支持序列化和持久化。
+本模块保留:
+  - ContextItem / ContextWindow  — 动态上下文窗口
+  - LifecycleEvent / LifecycleHooks / LifecycleHandler — 生命周期钩子
+  - Workflow / ExecutionLog / WorkflowResult / SubTask — 数据模型
+  - WorkflowEngine — 主引擎（DAG 执行、并发控制、优雅关闭）
+
+执行策略已拆分为:
+  - tools.workflow.execution  (RecoveryManager, QualityLoop, CircuitBreaker, ResultAggregator)
+  - tools.workflow.messaging  (Topic, Message, MessageBus)
 
 用法:
     engine = WorkflowEngine()
-    workflow = engine.load_workflow({
-        "id": "wf-001",
-        "name": "代码生成流水线",
-        "nodes": [
-            {"id": "n1", "type": "llm", "name": "需求分析", "config": {"prompt": "分析需求: {{input}}"}},
-            {"id": "n2", "type": "tool", "name": "代码生成", "config": {"tool_name": "generate_code"}, "inputs": ["n1"]},
-        ],
-        "edges": [{"from": "n1", "to": "n2"}]
-    })
+    workflow = engine.load_workflow({...})
     result = await engine.execute_async("wf-001", {"input": "用户登录模块"})
 """
 
-import logging
+import ast
 import asyncio
+import json
+import logging
+import random
+import uuid
+from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Optional
-from collections import deque
-
-from tools.workflow.nodes import (
-    WorkflowNode, NodeType, LLMNode, RAGNode, ToolNode, CodeNode, BranchNode,
-)
+from typing import Any, Callable, Dict, List, Optional
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# ContextWindow + ContextItem
+# ---------------------------------------------------------------------------
+
+@dataclass
+class ContextItem:
+    """单个上下文条目"""
+    role: str            # "system" | "user" | "assistant" | "tool"
+    content: str
+    priority: int = 5    # 1-10, 越高越重要
+    timestamp: str = field(
+        default_factory=lambda: datetime.now(timezone.utc).isoformat()
+    )
+    tool_name: str = ""
+    metadata: dict = field(default_factory=dict)
+
+
+class ContextWindow:
+    """
+    动态上下文窗口 — 管理 LLM 对话上下文。
+
+    支持优先级淘汰、角色过滤、token 预算控制。
+    """
+
+    def __init__(self, max_items: int = 50, max_tokens: int = 8000):
+        self._items: List[ContextItem] = []
+        self.max_items = max_items
+        self.max_tokens = max_tokens
+
+    def add(self, item: ContextItem) -> None:
+        """添加上下文条目"""
+        self._items.append(item)
+        self._evict()
+
+    def add_system(self, content: str, priority: int = 5) -> None:
+        self.add(ContextItem(role="system", content=content, priority=priority))
+
+    def add_user_message(self, content: str, priority: int = 5) -> None:
+        self.add(ContextItem(role="user", content=content, priority=priority))
+
+    def add_assistant(self, content: str, priority: int = 5) -> None:
+        self.add(ContextItem(role="assistant", content=content, priority=priority))
+
+    def add_tool_result(self, content: str, priority: int = 4,
+                        tool_name: str = "") -> None:
+        self.add(ContextItem(
+            role="tool", content=content, priority=priority, tool_name=tool_name,
+        ))
+
+    def build(self) -> str:
+        """构建上下文字符串（按优先级排序）"""
+        sorted_items = sorted(self._items, key=lambda x: x.priority, reverse=True)
+        parts = []
+        for item in sorted_items:
+            if item.role == "system":
+                parts.append(f"[SYSTEM] {item.content}")
+            elif item.role == "user":
+                parts.append(f"[USER] {item.content}")
+            elif item.role == "assistant":
+                parts.append(f"[ASSISTANT] {item.content}")
+            elif item.role == "tool":
+                name = item.tool_name or "tool"
+                parts.append(f"[{name.upper()}] {item.content}")
+        return "\n\n".join(parts)
+
+    def get_items(self, role: str = None) -> List[ContextItem]:
+        """获取上下文条目（可按角色过滤）"""
+        if role:
+            return [i for i in self._items if i.role == role]
+        return list(self._items)
+
+    def clear(self) -> None:
+        """清空上下文"""
+        self._items.clear()
+
+    def _evict(self) -> None:
+        """按优先级淘汰超出限制的条目"""
+        while len(self._items) > self.max_items:
+            # 淘汰最低优先级的条目
+            min_idx = min(range(len(self._items)), key=lambda i: self._items[i].priority)
+            self._items.pop(min_idx)
+
+    def __len__(self) -> int:
+        return len(self._items)
+
+
+# ---------------------------------------------------------------------------
+# LifecycleEvent / LifecycleHooks / LifecycleHandler
+# ---------------------------------------------------------------------------
+
+@dataclass
+class LifecycleEvent:
+    """生命周期事件"""
+    hook: str
+    run_id: str = ""
+    node_id: str = ""
+    data: dict = field(default_factory=dict)
+
+
+LifecycleHandler = Callable[[LifecycleEvent], Any]
+
+
+class LifecycleHooks:
+    """
+    工作流生命周期钩子注册表。
+
+    支持的钩子:
+    - on_start:    工作流开始执行
+    - on_step:     每个节点执行完成
+    - on_complete: 工作流执行成功
+    - on_error:    工作流执行失败
+    """
+
+    HOOKS = ["on_start", "on_step", "on_complete", "on_error"]
+
+    def __init__(self):
+        self._handlers: Dict[str, List[LifecycleHandler]] = {
+            hook: [] for hook in self.HOOKS
+        }
+
+    def register(self, hook: str, handler: LifecycleHandler) -> None:
+        """注册一个钩子 handler"""
+        if hook not in self._handlers:
+            raise ValueError(f"Unknown hook: {hook}. Valid: {list(self._handlers)}")
+        self._handlers[hook].append(handler)
+
+    def on(self, hook: str):
+        """装饰器语法注册钩子: @hooks.on('on_step')"""
+        def decorator(fn: LifecycleHandler) -> LifecycleHandler:
+            self.register(hook, fn)
+            return fn
+        return decorator
+
+    def unregister(self, hook: str, handler: LifecycleHandler) -> bool:
+        """注销一个钩子 handler"""
+        if hook in self._handlers and handler in self._handlers[hook]:
+            self._handlers[hook].remove(handler)
+            return True
+        return False
+
+    def emit(self, hook: str, run_id: str = "", node_id: str = "",
+             data: dict = None) -> list[Any]:
+        """触发钩子，按顺序执行所有 handler"""
+        event = LifecycleEvent(
+            hook=hook,
+            run_id=run_id,
+            node_id=node_id,
+            data=data or {},
+        )
+
+        results = []
+        for handler in self._handlers.get(hook, []):
+            try:
+                result = handler(event)
+                results.append(result)
+            except Exception as e:
+                logger.error("[Lifecycle] Handler %s failed for %s: %s",
+                             handler.__name__, hook, e)
+                results.append(None)
+
+        return results
+
+    def emit_sync(self, hook: str, **kwargs) -> None:
+        """触发钩子（不关心返回值）"""
+        self.emit(hook, **kwargs)
+
+    def clear(self, hook: str = None) -> None:
+        """清空指定钩子或全部"""
+        if hook:
+            self._handlers[hook] = []
+        else:
+            for h in self._handlers:
+                self._handlers[h] = []
+
+    def handler_count(self, hook: str = None) -> int:
+        """返回指定钩子的 handler 数量"""
+        if hook:
+            return len(self._handlers.get(hook, []))
+        return sum(len(v) for v in self._handlers.values())
+
+
+# ---------------------------------------------------------------------------
+# WorkflowEngine and related dataclasses
+# ---------------------------------------------------------------------------
+
+from tools.workflow.nodes import (
+    WorkflowNode, NodeType, LLMNode, RAGNode, ToolNode, CodeNode, BranchNode, HumanNode,
+)
+from tools.workflow.execution import (
+    RecoveryManager, RetryPolicy, RecoveryResult,
+    QualityLoop, QualityLoopResult,
+    AgentResult, ResultAggregator,
+    CircuitBreaker, CircuitState, CircuitBreakerOpenError,
+)
 
 
 @dataclass
@@ -66,12 +261,172 @@ class WorkflowResult:
     finished_at: str = ""
 
 
+@dataclass
+class SubTask:
+    """子任务定义 — 支持 fan-out 到多个并行 worker"""
+    task_id: str
+    node_id: str
+    inputs: dict
+    status: str = "pending"    # pending | running | completed | failed
+    output: Any = None
+    error: str = ""
+    retries: int = 0
+
+
 class WorkflowEngine:
     """工作流执行引擎"""
 
-    def __init__(self):
+    def __init__(self, max_retries: int = 3, retry_delay: float = 1.0,
+                 checkpoint_dir: str = ".checkpoints",
+                 context_window: ContextWindow = None,
+                 lifecycle_hooks: LifecycleHooks = None,
+                 recovery_manager: RecoveryManager = None,
+                 quality_loop: QualityLoop = None,
+                 max_concurrent: int = 5,
+                 max_runs_cache: int = 1000):
         self._workflows: Dict[str, Workflow] = {}
-        self._runs: Dict[str, WorkflowResult] = {}
+        self._runs: OrderedDict[str, WorkflowResult] = OrderedDict()
+        self._sub_tasks: Dict[str, SubTask] = {}
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
+        self.checkpoint_dir = checkpoint_dir
+        self.context_window = context_window
+        self.lifecycle_hooks = lifecycle_hooks or LifecycleHooks()
+        self.recovery_manager = recovery_manager
+        self.quality_loop = quality_loop
+
+        # 并发控制 (Gap 17)
+        self._max_concurrent = max_concurrent
+        self._semaphore = asyncio.Semaphore(max_concurrent)
+
+        # 内存管理 (Gap 18)
+        self._max_runs_cache = max_runs_cache
+
+        # 优雅关闭 (Gap 26)
+        self._shutdown_event = asyncio.Event()
+        self._active_tasks: set = set()
+
+    def save_checkpoint(self, run_id: str) -> str:
+        """保存运行状态检查点（支持断点续跑）"""
+        import os
+        result = self._runs.get(run_id)
+        if not result:
+            raise ValueError(f"Run not found: {run_id}")
+
+        os.makedirs(self.checkpoint_dir, exist_ok=True)
+        path = os.path.join(self.checkpoint_dir, f"{run_id}.json")
+        checkpoint = {
+            "run_id": run_id,
+            "workflow_id": result.workflow_id,
+            "status": result.status,
+            "outputs": {k: str(v)[:1000] for k, v in result.outputs.items()},
+            "logs": [{"node_id": l.node_id, "status": l.status,
+                      "duration_ms": l.duration_ms} for l in result.logs],
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(checkpoint, f, ensure_ascii=False, indent=2)
+        logger.info("[WorkflowEngine] Checkpoint saved: %s", path)
+        return path
+
+    def load_checkpoint(self, run_id: str) -> Optional[dict]:
+        """加载检查点"""
+        import os
+        path = os.path.join(self.checkpoint_dir, f"{run_id}.json")
+        if not os.path.exists(path):
+            return None
+        with open(path, "r", encoding="utf-8") as f:
+            return json.load(f)
+
+    def fan_out(self, node: WorkflowNode, inputs: dict,
+                sub_tasks: list[dict]) -> SubTask:
+        """Fan-out: 将一个节点拆分为多个并行子任务"""
+        main_task = SubTask(
+            task_id=str(uuid.uuid4())[:8],
+            node_id=node.id,
+            inputs=inputs,
+            status="running",
+        )
+        self._sub_tasks[main_task.task_id] = main_task
+
+        async def _run_sub():
+            coros = []
+            for sub in sub_tasks:
+                merged = {**inputs, **sub.get("inputs_override", {})}
+                sub_task = SubTask(
+                    task_id=sub.get("task_id", str(uuid.uuid4())[:6]),
+                    node_id=node.id,
+                    inputs=merged,
+                )
+                self._sub_tasks[sub_task.task_id] = sub_task
+                coros.append(self._run_single_node(node, merged, None))
+
+            outputs = await asyncio.gather(*coros, return_exceptions=True)
+            aggregated = []
+            for i, out in enumerate(outputs):
+                if isinstance(out, Exception):
+                    aggregated.append({"error": str(out), "index": i})
+                else:
+                    aggregated.append(out)
+            main_task.output = aggregated
+            main_task.status = "completed"
+
+        asyncio.create_task(_run_sub())
+        return main_task
+
+    async def _run_with_retry(self, node: WorkflowNode, inputs: dict,
+                              context: dict = None) -> Any:
+        """带重试 + 权限校验的节点执行（集成 RecoveryManager）"""
+        # 权限校验
+        if node.permissions:
+            allowed = context.get("allowed_permissions", []) if context else []
+            missing = [p for p in node.permissions if p not in allowed]
+            if missing and allowed:
+                raise PermissionError(
+                    f"Node '{node.id}' requires permissions {node.permissions}, "
+                    f"missing: {missing}"
+                )
+
+        # 幂等去重
+        if node.idempotent and node.id in getattr(self, '_executed_idempotent', set()):
+            logger.info("[WorkflowEngine] Skipping idempotent node %s (already executed)", node.id)
+            return {"skipped": True, "node_id": node.id}
+
+        # 如果有 RecoveryManager，使用分级恢复策略
+        if self.recovery_manager:
+            async def _execute():
+                return await self._execute_node(node, inputs, context)
+
+            recovery_result = await self.recovery_manager.execute_with_recovery(
+                _execute,
+                task_context={"node_id": node.id, "inputs": inputs},
+            )
+            if recovery_result.success:
+                return recovery_result.output
+            raise RuntimeError(f"Node {node.id} failed after recovery: {recovery_result.final_error}")
+
+        # 内置重试逻辑（无 RecoveryManager 时的 fallback）
+        last_error = None
+        for attempt in range(self.max_retries + 1):
+            try:
+                async with self._semaphore:
+                    if self._shutdown_event.is_set():
+                        raise RuntimeError("Engine is shutting down")
+                    result = await self._execute_node(node, inputs, context)
+                if node.idempotent:
+                    self._executed_idempotent = getattr(self, '_executed_idempotent', set())
+                    self._executed_idempotent.add(node.id)
+                return result
+            except Exception as e:
+                last_error = e
+                if attempt < self.max_retries and not isinstance(e, PermissionError):
+                    delay = self.retry_delay * (2 ** attempt) + random.random()
+                    logger.warning("[WorkflowEngine] Node %s retry %d/%d after %.1fs: %s",
+                                   node.id, attempt + 1, self.max_retries, delay, e)
+                    await asyncio.sleep(delay)
+                else:
+                    break
+        raise last_error
 
     def load_workflow(self, definition: dict) -> Workflow:
         """从字典加载工作流定义"""
@@ -83,6 +438,10 @@ class WorkflowEngine:
                 name=node_def.get("name", node_def["id"]),
                 config=node_def.get("config", {}),
                 inputs=node_def.get("inputs", []),
+                version=node_def.get("version", "1.0.0"),
+                permissions=node_def.get("permissions", []),
+                side_effect=node_def.get("side_effect", False),
+                idempotent=node_def.get("idempotent", False),
             )
             nodes[node.id] = node
 
@@ -118,7 +477,6 @@ class WorkflowEngine:
     async def execute_async(self, workflow_id: str, input_data: dict,
                             context: dict = None) -> str:
         """异步执行工作流，返回 run_id"""
-        import uuid
         run_id = str(uuid.uuid4())
         workflow = self._workflows.get(workflow_id)
         if not workflow:
@@ -133,9 +491,12 @@ class WorkflowEngine:
             started_at=datetime.now(timezone.utc).isoformat(),
         )
         self._runs[run_id] = result
+        self._evict_runs_cache()
 
-        # 异步执行
-        asyncio.create_task(self._run_workflow(workflow, result, input_data, context))
+        task = asyncio.create_task(self._run_workflow(workflow, result, input_data, context, run_id))
+        self._active_tasks.add(task)
+        task.add_done_callback(self._active_tasks.discard)
+
         return run_id
 
     def get_run_result(self, run_id: str) -> Optional[WorkflowResult]:
@@ -154,33 +515,99 @@ class WorkflowEngine:
             })
         return runs
 
+    def shutdown(self) -> None:
+        """触发优雅关闭"""
+        self._shutdown_event.set()
+        logger.info("[WorkflowEngine] Shutdown signaled, waiting for %d active tasks", len(self._active_tasks))
+
+    async def wait_for_completion(self, timeout: float = 30.0) -> bool:
+        """等待所有活跃任务完成"""
+        if not self._active_tasks:
+            return True
+
+        logger.info("[WorkflowEngine] Waiting for %d tasks to complete (timeout=%.0fs)"
+                     % (len(self._active_tasks), timeout))
+
+        start = asyncio.get_event_loop().time()
+        while self._active_tasks:
+            await asyncio.sleep(0.1)
+            elapsed = asyncio.get_event_loop().time() - start
+            if elapsed >= timeout:
+                logger.warning("[WorkflowEngine] Shutdown timeout after %.0fs, %d tasks still active",
+                               timeout, len(self._active_tasks))
+                return False
+
+        return True
+
+    @property
+    def active_task_count(self) -> int:
+        """当前活跃任务数"""
+        return len(self._active_tasks)
+
+    def _evict_runs_cache(self) -> None:
+        """LRU 淘汰"""
+        while len(self._runs) > self._max_runs_cache:
+            evicted_id, _ = self._runs.popitem(last=False)
+            logger.debug("[WorkflowEngine] Evicted run %s from cache (LRU)", evicted_id)
+
     async def _run_workflow(self, workflow: Workflow, result: WorkflowResult,
-                            input_data: dict, context: dict = None):
-        """执行工作流（拓扑排序 + 并行执行）"""
+                            input_data: dict, context: dict = None,
+                            run_id: str = ""):
+        """执行工作流（拓扑排序 + 并行执行 + 检查点 + 生命周期钩子 + 动态上下文）"""
         start_time = datetime.now(timezone.utc)
+        completed_nodes = set()
+        effective_run_id = run_id or str(uuid.uuid4())[:8]
+
+        # --- Lifecycle: on_start ---
+        self.lifecycle_hooks.emit(
+            "on_start",
+            run_id=effective_run_id,
+            data={"workflow_id": workflow.id, "node_count": len(workflow.nodes)},
+        )
+
         try:
-            # 拓扑排序
             order = self._topological_sort(workflow)
             result.outputs["_input"] = input_data
+
+            if self.context_window is not None:
+                self.context_window.add_system(
+                    f"Workflow: {workflow.name} ({workflow.id})", priority=10
+                )
+                self.context_window.add_user_message(
+                    str(input_data)[:500], priority=8
+                )
 
             for node_id in order:
                 node = workflow.nodes.get(node_id)
                 if not node:
                     continue
 
-                # 收集上游输入
                 upstream_inputs = {}
                 for dep_id in node.inputs:
                     if dep_id in result.outputs:
                         upstream_inputs[dep_id] = result.outputs[dep_id]
 
-                # 合并 input_data 到第一个节点
                 if not result.outputs:
                     upstream_inputs.update(input_data)
 
-                # 执行节点
                 node_start = datetime.now(timezone.utc)
-                output = await self._execute_node(node, upstream_inputs, context)
+                if self.quality_loop is not None and node.type == NodeType.LLM:
+                    quality_result = await self.quality_loop.execute_with_quality(
+                        node, upstream_inputs, context
+                    )
+                    output = quality_result.output
+                    result.outputs[f"{node_id}_quality"] = {
+                        "score": quality_result.quality_report.quality_score,
+                        "passed": quality_result.quality_report.passed,
+                        "iterations": quality_result.iterations,
+                        "converged": quality_result.converged,
+                        "issue_count": sum(
+                            len(r.issues)
+                            for r in quality_result.quality_report.module_results.values()
+                        ),
+                    }
+                else:
+                    output = await self._run_with_retry(node, upstream_inputs, context)
                 node_duration = int((datetime.now(timezone.utc) - node_start).total_seconds() * 1000)
 
                 result.outputs[node_id] = output
@@ -191,18 +618,52 @@ class WorkflowEngine:
                     duration_ms=node_duration,
                     timestamp=datetime.now(timezone.utc).isoformat(),
                 ))
+                completed_nodes.add(node_id)
+
+                if self.context_window is not None:
+                    self.context_window.add_tool_result(
+                        str(output)[:500], priority=4, tool_name=node_id
+                    )
+
+                self.lifecycle_hooks.emit(
+                    "on_step",
+                    run_id=effective_run_id,
+                    node_id=node_id,
+                    data={"status": "success", "duration_ms": node_duration},
+                )
+
+                try:
+                    self.save_checkpoint(result.workflow_id + "_" + result.started_at[:19])
+                except Exception:
+                    pass
 
             result.status = "success"
+
+            self.lifecycle_hooks.emit(
+                "on_complete",
+                run_id=effective_run_id,
+                data={"status": "success", "completed_nodes": list(completed_nodes)},
+            )
+
         except Exception as e:
-            logger.error("[WorkflowEngine] Execution failed: %s", e)
+            logger.error("[WorkflowEngine] Execution failed at node %s: %s",
+                         node_id, e)
             result.status = "failed"
             result.logs.append(ExecutionLog(
-                node_id="_engine",
+                node_id=node_id if 'node_id' in dir() else "_unknown",
                 status="failed",
                 output=str(e),
                 duration_ms=0,
                 timestamp=datetime.now(timezone.utc).isoformat(),
             ))
+
+            self.lifecycle_hooks.emit(
+                "on_error",
+                run_id=effective_run_id,
+                node_id=node_id if 'node_id' in dir() else "_unknown",
+                data={"error": str(e), "error_type": type(e).__name__,
+                      "completed_nodes": list(completed_nodes)},
+            )
         finally:
             result.execution_time_ms = int(
                 (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
@@ -211,21 +672,34 @@ class WorkflowEngine:
 
     async def _execute_node(self, node: WorkflowNode, inputs: dict,
                             context: dict = None) -> Any:
-        """根据节点类型执行"""
+        """根据节点类型执行（集成 ContextWindow 动态上下文）"""
+        node_inputs = inputs
+        if self.context_window is not None:
+            for dep_id, dep_output in inputs.items():
+                if dep_id.startswith("_"):
+                    continue
+                content = str(dep_output)[:500]
+                self.context_window.add_tool_result(
+                    content, priority=4, tool_name=dep_id
+                )
+            built_context = self.context_window.build()
+            if built_context:
+                node_inputs = {**inputs, "_dynamic_context": built_context}
+
         if node.type == NodeType.LLM:
             llm_node = LLMNode(
                 prompt_template=node.config.get("prompt_template", ""),
                 provider=context.get("llm_provider") if context else None,
                 temperature=node.config.get("temperature", 0.7),
             )
-            return await llm_node.execute(inputs)
+            return await llm_node.execute(node_inputs)
 
         elif node.type == NodeType.RAG:
             rag_node = RAGNode(
                 rag_engine=context.get("rag_engine") if context else None,
                 top_k=node.config.get("top_k", 5),
             )
-            return await rag_node.execute(inputs)
+            return await rag_node.execute(node_inputs)
 
         elif node.type == NodeType.TOOL:
             tool_node = ToolNode(
@@ -233,21 +707,34 @@ class WorkflowEngine:
                 tool_name=node.config.get("tool_name", ""),
                 arguments=node.config.get("arguments", {}),
             )
-            return await tool_node.execute(inputs)
+            return await tool_node.execute(node_inputs)
 
         elif node.type == NodeType.CODE:
             code_node = CodeNode(code_template=node.config.get("code", ""))
-            return await code_node.execute(inputs)
+            return await code_node.execute(node_inputs)
 
         elif node.type == NodeType.BRANCH:
             branch_node = BranchNode(
                 condition=node.config.get("condition", "true"),
                 branches=node.config.get("branches", {}),
             )
-            return await branch_node.execute(inputs)
+            return await branch_node.execute(node_inputs)
+
+        elif node.type == NodeType.HUMAN:
+            human_node = HumanNode(
+                prompt=node.config.get("prompt", "需要人工确认"),
+                risk_level=node.config.get("risk_level", "high"),
+                approval_handler=context.get("approval_handler") if context else None,
+            )
+            return await human_node.execute(node_inputs)
 
         else:
             return f"[Unknown node type: {node.type}]"
+
+    async def _run_single_node(self, node: WorkflowNode, inputs: dict,
+                               context: dict = None) -> Any:
+        """执行单个节点（供 fan_out 并行调用）"""
+        return await self._execute_node(node, inputs, context)
 
     def _topological_sort(self, workflow: Workflow) -> List[str]:
         """拓扑排序（Kahn's Algorithm）"""

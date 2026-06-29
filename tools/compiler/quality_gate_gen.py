@@ -81,12 +81,20 @@ class QualityGateGenerator:
     """从模块 Schema 自动生成质量门禁配置"""
 
     def generate(self, module_schemas: Dict[str, dict],
-                 global_config: Optional[Dict] = None) -> QualityGateSuite:
+                 global_config: Optional[Dict] = None,
+                 external_gates: Optional[List[Dict]] = None) -> QualityGateSuite:
         """
         生成逻辑:
           1. 所有模块共享的基础门禁（编译通过、无 critical 问题）
           2. 根据 Schema 特征生成针对性门禁
           3. 根据模块依赖关系调整门禁严格程度
+          4. 合并 pipeline.yaml 中定义的质量门禁（优先级更高）
+
+        Args:
+            module_schemas: 所有模块的 output_schema
+            global_config: 全局配置（可覆盖 min_test_coverage, min_quality_score）
+            external_gates: pipeline.yaml 中定义的质量门禁列表，格式:
+                [{"name": "...", "metric": "...", "operator": ">=", "value": 0.8, "blocking": true}]
         """
         suite = QualityGateSuite()
         global_config = global_config or {}
@@ -152,7 +160,7 @@ class QualityGateGenerator:
 
             # 有 security_requirements 的模块 → 安全评分检查
             input_props = module_schemas.get(module_name, {}).get("properties", {})
-            if "security_requirements" in input_props or module_name in ["authentication", "payment"]:
+            if "security_requirements" in input_props or module_name in ["authentication", "api_integration"]:
                 suite.gates.append(QualityGate(
                     name=f"{module_name}_security_score",
                     metric="security_score",
@@ -196,10 +204,65 @@ class QualityGateGenerator:
             applies_to=[],
         ))
 
+        # === 合并 pipeline.yaml 中的外部门禁（覆盖同名门禁） ===
+        if external_gates:
+            self._merge_external_gates(suite, external_gates)
+
         suite.metadata = {
             "total_gates": len(suite.gates),
             "blocking_gates": sum(1 for g in suite.gates if g.blocking),
             "modules_with_custom_gates": list(module_schemas.keys()),
+            "external_gates_merged": len(external_gates) if external_gates else 0,
         }
 
         return suite
+
+    @staticmethod
+    def _merge_external_gates(suite: QualityGateSuite, external_gates: List[Dict]) -> None:
+        """
+        合并 pipeline.yaml 中定义的质量门禁。
+
+        规则:
+          - 同名门禁 → 外部配置覆盖内部生成
+          - 新门禁 → 追加到套件
+          - metric 格式统一: "模块审查通过" → 自动映射到 all_modules_passed
+        """
+        # 名称映射: YAML 中的中文名 → 内部 metric 名
+        name_to_metric = {
+            "模块审查通过": "all_modules_passed",
+            "安全评分": "security_score",
+            "测试覆盖率": "test_coverage",
+            "无严重问题": "critical_issues_count",
+            "接口一致性": "interface_consistency",
+        }
+
+        existing_names = {g.name for g in suite.gates}
+
+        for ext in external_gates:
+            gate_name = ext.get("name", "")
+            metric = ext.get("metric", name_to_metric.get(gate_name, ""))
+
+            if not metric:
+                # 无法映射的名称，使用 gate_name 本身作为 metric
+                metric = gate_name
+
+            new_gate = QualityGate(
+                name=gate_name,
+                metric=metric,
+                operator=ext.get("operator", ">="),
+                threshold=ext.get("value"),
+                blocking=ext.get("blocking", True),
+                description=ext.get("description", f"pipeline.yaml: {gate_name}"),
+                applies_to=ext.get("applies_to", []),
+            )
+
+            # 查找并替换同名门禁
+            replaced = False
+            for i, existing in enumerate(suite.gates):
+                if existing.name == gate_name:
+                    suite.gates[i] = new_gate
+                    replaced = True
+                    break
+
+            if not replaced:
+                suite.gates.append(new_gate)

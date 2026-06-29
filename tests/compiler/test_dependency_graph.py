@@ -20,52 +20,41 @@ class TestDependencyGraph(unittest.TestCase):
         self.graph = DependencyGraph()
 
     def test_topological_sort_simple(self):
-        """简单依赖链: auth → order → payment"""
-        self.graph.add_module("auth", [])
-        self.graph.add_module("order", ["auth"])
-        self.graph.add_module("payment", ["order"])
+        """简单依赖链: authentication → data_processing → api_integration"""
+        self.graph.add_module("authentication", [])
+        self.graph.add_module("data_processing", ["authentication"])
+        self.graph.add_module("api_integration", ["data_processing"])
 
         result = self.graph.topological_sort()
 
-        self.assertEqual(result, ["auth", "order", "payment"])
+        self.assertEqual(result, ["authentication", "data_processing", "api_integration"])
 
     def test_topological_sort_parallel(self):
-        """并行模块: auth 无依赖, product 和 cart 都依赖 auth"""
-        self.graph.add_module("auth", [])
-        self.graph.add_module("product", ["auth"])
-        self.graph.add_module("cart", ["auth"])
-        self.graph.add_module("order", ["auth", "cart"])
-
-        result = self.graph.topological_sort()
-
-        # auth 必须在最前
-        self.assertEqual(result[0], "auth")
-        # order 必须在 cart 之后
-        self.assertLess(result.index("cart"), result.index("order"))
-        # product 和 cart 的顺序不确定，但都在 auth 之后
-        self.assertLess(result.index("auth"), result.index("product"))
-        self.assertLess(result.index("auth"), result.index("cart"))
-
-    def test_topological_sort_ecommerce_7_modules(self):
-        """完整的 7 模块电商依赖图"""
+        """并行模块: authentication 无依赖, data_processing 和 api_integration 都依赖 authentication"""
         self.graph.add_module("authentication", [])
-        self.graph.add_module("product_catalog", ["authentication"])
-        self.graph.add_module("shopping_cart", ["authentication"])
-        self.graph.add_module("order_system", ["authentication", "shopping_cart"])
-        self.graph.add_module("payment_integration", ["authentication", "order_system"])
-        self.graph.add_module("notification_service", ["authentication"])
-        self.graph.add_module("data_reporting", ["authentication", "order_system"])
+        self.graph.add_module("data_processing", ["authentication"])
+        self.graph.add_module("api_integration", ["authentication"])
 
         result = self.graph.topological_sort()
 
-        self.assertEqual(len(result), 7)
+        # authentication 必须在最前
         self.assertEqual(result[0], "authentication")
-        # order 在 cart 之后
-        self.assertLess(result.index("shopping_cart"), result.index("order_system"))
-        # payment 在 order 之后
-        self.assertLess(result.index("order_system"), result.index("payment_integration"))
-        # report 在 order 之后
-        self.assertLess(result.index("order_system"), result.index("data_reporting"))
+        # data_processing 和 api_integration 的顺序不确定，但都在 authentication 之后
+        self.assertLess(result.index("authentication"), result.index("data_processing"))
+        self.assertLess(result.index("authentication"), result.index("api_integration"))
+
+    def test_topological_sort_three_modules(self):
+        """完整的 3 模块依赖图: authentication → data_processing → api_integration"""
+        self.graph.add_module("authentication", [])
+        self.graph.add_module("data_processing", ["authentication"])
+        self.graph.add_module("api_integration", ["authentication", "data_processing"])
+
+        result = self.graph.topological_sort()
+
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result[0], "authentication")
+        # data_processing 在 api_integration 之前
+        self.assertLess(result.index("data_processing"), result.index("api_integration"))
 
     def test_cycle_detection(self):
         """循环依赖应抛出 ValueError"""
@@ -81,7 +70,7 @@ class TestDependencyGraph(unittest.TestCase):
     def test_has_cycle_false(self):
         """无环图 has_cycle 返回 False"""
         self.graph.add_module("auth", [])
-        self.graph.add_module("order", ["auth"])
+        self.graph.add_module("api_integration", ["auth"])
 
         self.assertFalse(self.graph.has_cycle())
 
@@ -94,39 +83,35 @@ class TestDependencyGraph(unittest.TestCase):
 
     def test_get_all_dependencies(self):
         """传递依赖查询"""
-        self.graph.add_module("auth", [])
-        self.graph.add_module("cart", ["auth"])
-        self.graph.add_module("order", ["auth", "cart"])
-        self.graph.add_module("payment", ["auth", "order"])
+        self.graph.add_module("authentication", [])
+        self.graph.add_module("api_integration", ["authentication"])
+        self.graph.add_module("data_processing", ["authentication", "api_integration"])
 
-        all_deps = self.graph.get_all_dependencies("payment")
-        self.assertEqual(all_deps, {"auth", "cart", "order"})
+        all_deps = self.graph.get_all_dependencies("data_processing")
+        self.assertEqual(all_deps, {"authentication", "api_integration"})
 
     def test_get_dependents(self):
         """反向依赖查询"""
-        self.graph.add_module("auth", [])
-        self.graph.add_module("cart", ["auth"])
-        self.graph.add_module("order", ["auth", "cart"])
+        self.graph.add_module("authentication", [])
+        self.graph.add_module("api_integration", ["authentication"])
+        self.graph.add_module("data_processing", ["authentication", "api_integration"])
 
-        dependents = self.graph.get_dependents("auth")
-        self.assertIn("cart", dependents)
-        self.assertIn("order", dependents)
+        dependents = self.graph.get_dependents("authentication")
+        self.assertIn("api_integration", dependents)
+        self.assertIn("data_processing", dependents)
 
     def test_parallel_groups(self):
         """并行组识别"""
-        self.graph.add_module("auth", [])
-        self.graph.add_module("product", ["auth"])
-        self.graph.add_module("cart", ["auth"])
-        self.graph.add_module("order", ["auth", "cart"])
+        self.graph.add_module("authentication", [])
+        self.graph.add_module("data_processing", ["authentication"])
+        self.graph.add_module("api_integration", ["authentication"])
 
         groups = self.graph.get_parallel_groups()
 
-        # 第一组: [auth]
-        self.assertEqual(groups[0], ["auth"])
-        # 第二组: [product, cart]（可并行）
-        self.assertEqual(set(groups[1]), {"product", "cart"})
-        # 第三组: [order]
-        self.assertEqual(groups[2], ["order"])
+        # 第一组: [authentication]
+        self.assertEqual(groups[0], ["authentication"])
+        # 第二组: [data_processing, api_integration]（可并行）
+        self.assertEqual(set(groups[1]), {"data_processing", "api_integration"})
 
 
 class TestDependencyGraphBuilder(unittest.TestCase):
@@ -141,9 +126,9 @@ class TestDependencyGraphBuilder(unittest.TestCase):
                     "module": "authentication",
                     "dependencies": [],
                 },
-                "expert_order": {
+                "expert_data_processing": {
                     "role": "expert",
-                    "module": "order_system",
+                    "module": "data_processing",
                     "dependencies": ["authentication"],
                 },
                 "expert_supervisor": {
@@ -157,7 +142,7 @@ class TestDependencyGraphBuilder(unittest.TestCase):
         graph = builder.build()
 
         self.assertIn("authentication", graph.nodes)
-        self.assertIn("order_system", graph.nodes)
+        self.assertIn("data_processing", graph.nodes)
         # supervisor 不应被包含（role != expert）
         self.assertNotIn("orchestration", graph.nodes)
 
@@ -170,9 +155,9 @@ class TestDependencyGraphBuilder(unittest.TestCase):
                     "module": "authentication",
                     "dependencies": [],
                 },
-                "expert_order": {
+                "expert_data_processing": {
                     "role": "expert",
-                    "module": "order_system",
+                    "module": "data_processing",
                     "dependencies": ["authentication"],
                 },
             }
@@ -188,9 +173,9 @@ class TestDependencyGraphBuilder(unittest.TestCase):
         """验证缺失的依赖"""
         agents_config = {
             "agents": {
-                "expert_order": {
+                "expert_data_processing": {
                     "role": "expert",
-                    "module": "order_system",
+                    "module": "data_processing",
                     "dependencies": ["nonexistent_module"],
                 },
             }

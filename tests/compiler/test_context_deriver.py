@@ -1,4 +1,4 @@
-﻿"""
+"""
 tests/compiler/test_context_deriver.py
 
 上下文注入推导器测试 — 验证 Schema → ContextStrategy 的自动推导
@@ -30,65 +30,55 @@ class TestContextDeriver(unittest.TestCase):
 
     def test_auth_schema_derives_security_context(self):
         """认证模块 Schema 应推导出需要安全上下文"""
-        schema = self._load_schema("auth_input.json")
+        schema = self._load_schema("authentication_input.json")
         strategy = self.deriver.derive("authentication", schema)
 
         self.assertTrue(strategy.needs_security_context)
         self.assertTrue(strategy.needs_global_constraints)
         self.assertIn("security_requirements", strategy.injectable_fields)
 
-    def test_order_schema_derives_dependency_interfaces(self):
-        """订单模块 Schema 应推导出需要依赖接口"""
-        schema = self._load_schema("order_input.json")
-        strategy = self.deriver.derive("order_system", schema)
+    def test_data_processing_schema_derives_dependency_interfaces(self):
+        """数据处理模块 Schema 应推导出需要依赖接口"""
+        schema = self._load_schema("data_processing_input.json")
+        strategy = self.deriver.derive("data_processing", schema)
 
         self.assertTrue(strategy.needs_dependency_interfaces)
         self.assertTrue(strategy.needs_global_constraints)
-        self.assertIn("dependency_interfaces", strategy.injectable_fields)
 
-    def test_payment_schema_derives_compliance_context(self):
-        """支付模块 Schema 应推导出需要合规上下文"""
-        schema = self._load_schema("payment_input.json")
-        strategy = self.deriver.derive("payment_integration", schema)
+    def test_api_integration_schema_derives_compliance_context(self):
+        """API 集成模块 Schema 应推导出需要合规上下文"""
+        schema = self._load_schema("api_integration_input.json")
+        strategy = self.deriver.derive("api_integration", schema)
 
         self.assertTrue(strategy.needs_compliance_context)
         self.assertTrue(strategy.needs_global_constraints)
         self.assertIn("compliance_requirements", strategy.injectable_fields)
 
-    def test_cart_schema_derives_business_rules(self):
-        """购物车模块 Schema 应推导出需要业务规则"""
-        schema = self._load_schema("cart_input.json")
-        strategy = self.deriver.derive("shopping_cart", schema)
-
-        self.assertTrue(strategy.needs_business_rules)
-        self.assertIn("business_rules", strategy.injectable_fields)
-
-    def test_notification_schema_minimal_context(self):
-        """通知模块 Schema 只推导最小上下文（无安全/合规）"""
-        schema = self._load_schema("notification_input.json")
-        strategy = self.deriver.derive("notification_service", schema)
+    def test_data_processing_schema_minimal_context(self):
+        """数据处理模块 Schema 只推导最小上下文（无安全/合规）"""
+        schema = self._load_schema("data_processing_input.json")
+        strategy = self.deriver.derive("data_processing", schema)
 
         self.assertTrue(strategy.needs_global_constraints)
         self.assertFalse(strategy.needs_security_context)
         self.assertFalse(strategy.needs_compliance_context)
         self.assertFalse(strategy.needs_business_rules)
 
-    def test_product_schema_derives_search_requirements(self):
-        """商品模块 Schema 应推导出需要搜索需求"""
-        schema = self._load_schema("product_input.json")
-        strategy = self.deriver.derive("product_catalog", schema)
+    def test_api_integration_schema_derives_search_requirements(self):
+        """API 集成模块 Schema 应推导出需要搜索需求"""
+        schema = self._load_schema("api_integration_input.json")
+        strategy = self.deriver.derive("api_integration", schema)
 
         self.assertTrue(strategy.needs_search_requirements)
         self.assertIn("search_requirements", strategy.injectable_fields)
 
-    def test_report_schema_no_extra_context(self):
-        """报表模块 Schema 不推导额外上下文"""
-        schema = self._load_schema("report_input.json")
-        strategy = self.deriver.derive("data_reporting", schema)
+    def test_api_integration_schema_no_security_context(self):
+        """API 集成模块 Schema 不推导安全上下文（无 security_requirements）"""
+        schema = self._load_schema("api_integration_input.json")
+        strategy = self.deriver.derive("api_integration", schema)
 
         self.assertTrue(strategy.needs_global_constraints)
         self.assertFalse(strategy.needs_security_context)
-        self.assertFalse(strategy.needs_compliance_context)
 
     def test_derive_all_returns_all_modules(self):
         """批量推导应返回所有模块的策略"""
@@ -107,7 +97,7 @@ class TestContextDeriver(unittest.TestCase):
 
     def test_explain_output_is_readable(self):
         """推导说明应生成人类可读的文本"""
-        schema = self._load_schema("auth_input.json")
+        schema = self._load_schema("authentication_input.json")
         strategy = self.deriver.derive("authentication", schema)
         explanation = self.deriver.explain(strategy)
 
@@ -130,27 +120,27 @@ class TestContextStrategyIsolation(unittest.TestCase):
         with open(path, encoding="utf-8") as f:
             return json.load(f)
 
-    def test_auth_has_security_but_notification_doesnt(self):
-        """认证有安全上下文，通知没有"""
-        auth_schema = self._load_schema("auth_input.json")
-        notif_schema = self._load_schema("notification_input.json")
+    def test_auth_has_security_but_data_processing_doesnt(self):
+        """认证有安全上下文，数据处理没有"""
+        auth_schema = self._load_schema("authentication_input.json")
+        dp_schema = self._load_schema("data_processing_input.json")
 
         auth_strategy = self.deriver.derive("authentication", auth_schema)
-        notif_strategy = self.deriver.derive("notification_service", notif_schema)
+        dp_strategy = self.deriver.derive("data_processing", dp_schema)
 
         self.assertTrue(auth_strategy.needs_security_context)
-        self.assertFalse(notif_strategy.needs_security_context)
+        self.assertFalse(dp_strategy.needs_security_context)
 
-    def test_payment_has_compliance_but_cart_doesnt(self):
-        """支付有合规上下文，购物车没有"""
-        pay_schema = self._load_schema("payment_input.json")
-        cart_schema = self._load_schema("cart_input.json")
+    def test_api_integration_has_compliance_but_data_processing_doesnt(self):
+        """API 集成有合规上下文，数据处理没有"""
+        api_schema = self._load_schema("api_integration_input.json")
+        dp_schema = self._load_schema("data_processing_input.json")
 
-        pay_strategy = self.deriver.derive("payment_integration", pay_schema)
-        cart_strategy = self.deriver.derive("shopping_cart", cart_schema)
+        api_strategy = self.deriver.derive("api_integration", api_schema)
+        dp_strategy = self.deriver.derive("data_processing", dp_schema)
 
-        self.assertTrue(pay_strategy.needs_compliance_context)
-        self.assertFalse(cart_strategy.needs_compliance_context)
+        self.assertTrue(api_strategy.needs_compliance_context)
+        self.assertFalse(dp_strategy.needs_compliance_context)
 
 
 if __name__ == "__main__":

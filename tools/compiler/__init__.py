@@ -11,7 +11,7 @@ Pipeline Compiler — 核心编译器模块
   5. 质量门禁配置（QualityGateGenerator）
 """
 
-from tools.compiler.pipeline_compiler import PipelineCompiler
+from tools.compiler.pipeline_compiler import PipelineCompiler, PipelineConfig, CompiledPipeline
 from tools.compiler.context_deriver import ContextDeriver
 from tools.compiler.prompt_generator import PromptTemplateGenerator
 from tools.compiler.fix_deriver import FixInstructionDeriver
@@ -20,6 +20,8 @@ from tools.compiler.quality_gate_gen import QualityGateGenerator
 
 __all__ = [
     "PipelineCompiler",
+    "PipelineConfig",
+    "CompiledPipeline",
     "ContextDeriver",
     "PromptTemplateGenerator",
     "FixInstructionDeriver",

@@ -188,7 +188,7 @@ class QualityEvaluator:
     def _estimate_security_score(self, review_results: List[ReviewResult]) -> float:
         """估算安全评分"""
         # 简化：如果有安全相关模块，检查其审查结果
-        security_modules = ["authentication", "payment"]
+        security_modules = ["authentication", "api_integration"]
         sec_results = [r for r in review_results if r.module in security_modules]
         if not sec_results:
             return 0.9  # 默认

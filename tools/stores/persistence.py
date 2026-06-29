@@ -1,4 +1,4 @@
-﻿"""
+"""
 tools/stores/persistence.py
 
 SQLite persistence backend for all stores.
@@ -19,11 +19,12 @@ class StoreDatabase:
 
     SCHEMA = """
         CREATE TABLE IF NOT EXISTS store_data (
-            key TEXT PRIMARY KEY,
+            key TEXT NOT NULL,
             store_type TEXT NOT NULL,
             data TEXT NOT NULL,
             created_at TEXT DEFAULT (datetime('now')),
-            updated_at TEXT DEFAULT (datetime('now'))
+            updated_at TEXT DEFAULT (datetime('now')),
+            PRIMARY KEY (key, store_type)
         );
         CREATE INDEX IF NOT EXISTS idx_store_type ON store_data(store_type);
     """
@@ -35,7 +36,7 @@ class StoreDatabase:
         self._lock = threading.Lock()
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(db_path)
-        self._conn.execute(self.SCHEMA)
+        self._conn.executescript(self.SCHEMA)
         self._conn.commit()
 
     def put(self, store_type: str, key: str, data: Any) -> None:

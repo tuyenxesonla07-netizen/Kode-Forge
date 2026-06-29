@@ -35,5 +35,5 @@ USER appuser
 # Ruff writable cache (appuser can't write to /app directly in some contexts)
 ENV RUFF_CACHE_DIR=/tmp/ruff_cache
 
-ENTRYPOINT ["python", "/app/docker_entrypoint.py"]
+ENTRYPOINT ["python", "-m", "tools.cc_cli"]
 CMD ["eval"]

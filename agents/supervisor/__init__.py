@@ -19,6 +19,9 @@ from typing import Dict, List, Any, Optional
 
 logger = logging.getLogger(__name__)
 
+# ── ClaudeCodexMultiAgent (full pipeline orchestrator) ─────────────────
+from agents.pipeline import ClaudeCodexMultiAgent  # noqa: E402
+
 
 @dataclass
 class Requirement:
@@ -130,25 +133,31 @@ class CodexSupervisor:
         llm_provider,
         module_name: str,
         input_schema: Dict[str, Any] = None,
+        timeout: float = 120.0,
     ) -> str:
         """Generate production-ready Python code using the real LLM. Validates with ast.parse()."""
         try:
-            from tools.agent import ClaudeCodeExecutor
+            from agents.supervisor.agent_executor import ClaudeCodeExecutor
 
             executor = ClaudeCodeExecutor(llm_provider=llm_provider)
-            code = executor.generate_code(spec=module_spec, module_name=module_name)
+            code = executor.generate_code(
+                spec=module_spec, module_name=module_name, timeout=timeout,
+            )
             return code
         except (ImportError, RuntimeError) as e:
             logger.warning("[Supervisor] ClaudeCodeExecutor not available (%s), falling back to inline", e)
-            return self._generate_code_inline(module_spec, llm_provider, module_name)
+            return self._generate_code_inline(module_spec, llm_provider, module_name, timeout=timeout)
 
     def _generate_code_inline(
         self,
         module_spec: Dict[str, Any],
         llm_provider,
         module_name: str,
+        timeout: float = 120.0,
     ) -> str:
-        """Inline code generation fallback."""
+        """Inline code generation fallback with AST validation + retry + interface check."""
+        import concurrent.futures
+
         try:
             components = module_spec.get("components", [])
             interfaces = module_spec.get("interfaces", [])
@@ -199,40 +208,92 @@ class CodexSupervisor:
                 "Output ONLY raw Python code -- no markdown, no explanation, no code fences."
             )
 
-            response = llm_provider.complete(
-                prompt=prompt,
-                system_prompt=system_prompt,
-                output_format="text",
-                max_tokens=8192,
-                temperature=0.2,
-            )
-
-            if not response.success or not response.content:
-                logger.warning("[Supervisor] LLM generation failed for %s: %s", module_name, response.error)
-                return ""
-
-            code = response.content.strip()
-            if code.startswith("```"):
-                parts = code.split("\n", 1)
-                if len(parts) > 1:
-                    code = parts[1]
-                else:
-                    code = code[3:]
-                if code.endswith("```"):
-                    code = code[:-3]
-                code = code.strip()
-
-            try:
-                ast.parse(code)
-            except SyntaxError as e:
-                logger.warning(
-                    "[Supervisor] AST validation failed for %s: %s (response length: %d)",
-                    module_name, e, len(response.content or ""),
+            def _call_llm(prompt_text, sys_prompt_text):
+                return llm_provider.complete(
+                    prompt=prompt_text,
+                    system_prompt=sys_prompt_text,
+                    output_format="text",
+                    max_tokens=8192,
+                    temperature=0.2,
                 )
-                return ""
 
-            logger.info("[Supervisor] Generated %d lines for %s", code.count("\n") + 1, module_name)
-            return code
+            current_timeout = timeout
+            for attempt in range(1, 3):  # up to 2 attempts
+                try:
+                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                        future = pool.submit(_call_llm, prompt, system_prompt)
+                        response = future.result(timeout=current_timeout)
+                except concurrent.futures.TimeoutError:
+                    logger.warning("[Supervisor] LLM timeout for %s (attempt %d / %d)",
+                                   module_name, attempt, 2)
+                    if attempt == 1:
+                        current_timeout = min(current_timeout * 2.5, 300.0)
+                        continue
+                    return ""
+                except Exception as exc:
+                    logger.error("[Supervisor] LLM call failed for %s (attempt %d): %s",
+                                module_name, attempt, exc)
+                    return ""
+
+                if not response.success or not response.content:
+                    logger.warning("[Supervisor] LLM generation failed for %s (attempt %d): %s",
+                                   module_name, attempt, response.error)
+                    return ""
+
+                code = response.content.strip()
+                if code.startswith("```"):
+                    parts = code.split("\n", 1)
+                    if len(parts) > 1:
+                        code = parts[1]
+                    else:
+                        code = code[3:]
+                    if code.endswith("```"):
+                        code = code[:-3]
+                    code = code.strip()
+
+                try:
+                    ast.parse(code)
+                except SyntaxError as e:
+                    logger.warning(
+                        "[Supervisor] AST validation failed for %s (attempt %d): %s",
+                        module_name, attempt, e,
+                    )
+                    if attempt == 1:
+                        prompt = (
+                            f"Your previous code had a syntax error:\n"
+                            f"  {e}\n\n"
+                            f"Fix it. Output ONLY corrected Python code "
+                            f"with no markdown fences.\n\n"
+                            f"Original request:\n{prompt}"
+                        )
+                        system_prompt = (
+                            "Fix the syntax error and output ONLY corrected Python code. "
+                            "No markdown, no explanation, no code fences."
+                        )
+                        continue
+                    return ""
+
+                # Interface consistency check
+                missing_names = []
+                code_lower = code.lower()
+                for iface in interfaces:
+                    name = iface.get("name", "") if isinstance(iface, dict) else str(iface)
+                    if name and name.lower() not in code_lower:
+                        missing_names.append(name)
+                if missing_names and attempt == 1:
+                    logger.warning("[Supervisor] Missing interfaces for %s: %s", module_name, missing_names)
+                    prompt = (
+                        f"Your code is missing these required interfaces: {missing_names}\n\n"
+                        f"Add them. Output ONLY corrected Python code.\n\n"
+                        f"Original request:\n{prompt}"
+                    )
+                    continue
+
+                logger.info("[Supervisor] Generated %d lines for %s (attempt %d)",
+                            code.count("\n") + 1, module_name, attempt)
+                return code
+
+            return ""
 
         except Exception as exc:
             logger.error("[Supervisor] Code gen error for %s: %s", module_name, exc)
@@ -280,22 +341,43 @@ class CodexSupervisor:
                 "approved": bool,
             }
         """
-        from tools.agent import ClaudeCodeExecutor, ExecutionBackend, TaskSpec  # noqa: F401
+        from agents.supervisor.agent_executor import (  # noqa: F401
+            ClaudeCodeExecutor,
+            ExecutionBackend,
+            TaskSpec,
+        )
 
-        # Use provided backend or create default ClaudeCodeBackend
+        # Use provided backend or create default
         if backend is None:
             if llm_provider is None:
                 try:
-                    from tools.agent.claude_code import DayueAIProvider
-                    llm_provider = DayueAIProvider()
+                    from tools.llm.anthropic import AnthropicClaudeProvider
+                    llm_provider = AnthropicClaudeProvider()
                 except (ValueError, ImportError) as e:
                     raise RuntimeError(
                         f"Failed to initialize LLM provider for code generation: {e}. "
                         f"Set LLM_API_KEY environment variable or install required dependencies."
                     ) from e
 
-            from tools.agent.claude_code_backend import ClaudeCodeBackend
-            backend = ClaudeCodeBackend(llm_provider=llm_provider)
+            from agents.supervisor.agent_executor import ExecutionBackend as _EB
+            # Simple inline backend
+            class _DefaultBackend(_EB):
+                def __init__(self, provider):
+                    self._provider = provider
+                def execute_task(self, task):
+                    from agents.supervisor.agent_executor import TaskResult
+                    code = ClaudeCodeExecutor(self._provider).generate_code(
+                        spec=task.spec, module_name=task.module_name
+                    )
+                    return TaskResult(
+                        module_name=task.module_name,
+                        success=bool(code),
+                        code=code,
+                    )
+                def get_name(self):
+                    return "default"
+
+            backend = _DefaultBackend(llm_provider=llm_provider)
 
         # Validate backend interface
         if not isinstance(backend, ExecutionBackend):
@@ -437,7 +519,7 @@ class CodexSupervisor:
             {module_name: code_string} — if conflicts resolved, some module names
             may share the same code (from merged files)
         """
-        from tools.agent import TaskSpec, MergeCoordinator
+        from agents.supervisor.agent_executor import TaskSpec, MergeCoordinator
 
         code_artifact: Dict[str, str] = {}
         logger.info("[Supervisor] Starting real code generation for %d modules...", len(module_specs))
@@ -541,7 +623,7 @@ class CodexSupervisor:
         # ── Computer Use: Post-generation verification ──
         computer_use_report = None
         if enable_conflict_resolution and self._computer_use_enabled:
-            from tools.agent import ComputerUseOrchestrator, create_computer_use_backend
+            from agents.supervisor.agent_executor import ComputerUseOrchestrator, create_computer_use_backend
             backend = create_computer_use_backend(
                 self._computer_use_backend or "codex",
                 workdir=self._computer_use_workdir or ".",

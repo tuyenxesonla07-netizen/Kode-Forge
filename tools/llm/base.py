@@ -47,6 +47,32 @@ class LLMProvider(ABC):
         """
         ...
 
+    async def acomplete(
+        self,
+        prompt: str,
+        system_prompt: str = "",
+        output_format: str = "text",
+        max_tokens: int = 4096,
+        temperature: float = 0.7,
+    ) -> LLMResponse:
+        """
+        异步调用 LLM 生成回复。
+
+        默认实现调用同步 complete() 方法。
+        支持异步的 Provider 应覆盖此方法。
+
+        Args:
+            prompt: 用户提示
+            system_prompt: 系统提示
+            output_format: 输出格式
+            max_tokens: 最大 token 数
+            temperature: 温度
+
+        Returns:
+            LLMResponse
+        """
+        return self.complete(prompt, system_prompt, output_format, max_tokens, temperature)
+
     @abstractmethod
     def get_name(self) -> str:
         """返回 Provider 名称"""

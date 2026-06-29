@@ -20,9 +20,9 @@ EVAL_CASES = [
         "checks": ["modules_generated"],
     },
     {
-        "id": "module_gen_ecommerce",
-        "input": "Build e-commerce platform with auth, products, cart, orders, payment",
-        "expected_modules": ["authentication", "product_catalog", "shopping_cart", "order_system", "payment_integration"],
+        "id": "module_gen_demo",
+        "input": "Build application with auth, data processing, and API integration",
+        "expected_modules": ["authentication", "data_processing", "api_integration"],
         "checks": ["modules_generated"],
     },
     {
@@ -32,15 +32,9 @@ EVAL_CASES = [
         "checks": ["modules_generated"],
     },
     {
-        "id": "module_gen_with_deps",
-        "input": "Build order system with authentication and shopping cart dependencies",
-        "expected_modules": ["order_system"],
-        "checks": ["modules_generated"],
-    },
-    {
-        "id": "module_gen_notification",
-        "input": "Create notification service with email and SMS support",
-        "expected_modules": ["notification_service"],
+        "id": "module_gen_data_processing",
+        "input": "Create a data transformation pipeline",
+        "expected_modules": ["data_processing"],
         "checks": ["modules_generated"],
     },
     # ── 代码质量 (5 cases) ─────────────────────────────────────
@@ -52,14 +46,14 @@ EVAL_CASES = [
     },
     {
         "id": "code_has_interfaces",
-        "input": "Build payment module with process_payment and refund interfaces",
-        "expected_modules": ["payment_integration"],
+        "input": "Build data processing module with transform and validate interfaces",
+        "expected_modules": ["data_processing"],
         "checks": ["has_interfaces"],
     },
     {
         "id": "code_has_components",
-        "input": "Build shopping cart with CartService and CartModel",
-        "expected_modules": ["shopping_cart"],
+        "input": "Build data processing with DataPipeline and TransformService",
+        "expected_modules": ["data_processing"],
         "checks": ["has_components"],
     },
     {
@@ -70,8 +64,8 @@ EVAL_CASES = [
     },
     {
         "id": "code_docstrings",
-        "input": "Create product search API",
-        "expected_modules": ["product_catalog"],
+        "input": "Create data transformation API",
+        "expected_modules": ["api_integration"],
         "checks": ["code_compiles"],
     },
     # ── 安全 (5 cases) ────────────────────────────────────────
@@ -113,8 +107,8 @@ EVAL_CASES = [
     },
     {
         "id": "budget_complex",
-        "input": "Build complete e-commerce platform with all modules, tests, and documentation",
-        "expected_modules": ["authentication", "product_catalog"],
+        "input": "Build complete application with authentication, data processing, and API integration, with tests, and documentation",
+        "expected_modules": ["authentication", "data_processing", "api_integration"],
         "checks": ["within_budget"],
     },
     {
@@ -140,12 +134,12 @@ EVAL_CASES = [
     },
     {
         "id": "convergence_with_fix",
-        "input": "Build payment module with retry logic",
+        "input": "Build API integration with retry logic",
         "checks": ["converges"],
     },
     {
         "id": "convergence_multi_round",
-        "input": "Create order system with state machine",
+        "input": "Create data processing pipeline with state machine",
         "checks": ["converges"],
     },
     {
@@ -155,7 +149,7 @@ EVAL_CASES = [
     },
     {
         "id": "convergence_new_feature",
-        "input": "Add notification service to existing platform",
+        "input": "Add API integration layer to existing platform",
         "checks": ["converges"],
     },
 ]

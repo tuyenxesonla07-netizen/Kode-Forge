@@ -3,8 +3,8 @@ tools/compiler/fix_deriver.py
 
 修复指令推导器 — 从 output_schema 自动推导修复指令模板
 
-核心创新：不是固定 7 种 fix_type，而是根据 Schema 动态生成修复规则。
-订单模块会多出 fix_state_machine，认证模块会多出 fix_security。
+核心创新：不是固定 fix_type，而是根据 Schema 动态生成修复规则。
+认证/	api_integration 模块会多出 fix_security。
 """
 
 from dataclasses import dataclass, field
@@ -139,7 +139,7 @@ class FixInstructionDeriver:
             ))
 
         # 规则 5: 安全修复（检测安全相关字段）
-        if "security_requirements" in spec_properties or module_name in ["authentication", "payment", "payment_integration"]:
+        if "security_requirements" in spec_properties or module_name in ["authentication", "api_integration"]:
             template.rules.append(FixRule(
                 trigger="security_issue",
                 fix_type="fix_security",
@@ -168,7 +168,7 @@ class FixInstructionDeriver:
             "has_state_machine_rule": "state_machine" in spec_properties,
             "has_security_rule": (
                 "security_requirements" in spec_properties
-                or module_name in ["authentication", "payment", "payment_integration"]
+                or module_name in ["authentication", "api_integration"]
             ),
         }
 

@@ -11,6 +11,7 @@ Store 组件 — 三大逻辑存储
 from tools.stores.requirement_store import RequirementStore, ModuleRequirement
 from tools.stores.interface_store import InterfaceStore, InterfaceDef
 from tools.stores.spec_store import SpecStore, ModuleSpec
+from tools.stores.persistence import StoreDatabase
 
 # Optional PostgreSQL store
 try:
@@ -26,6 +27,7 @@ __all__ = [
     "InterfaceDef",
     "SpecStore",
     "ModuleSpec",
+    "StoreDatabase",
 ]
 
 if _POSTGRES_AVAILABLE:

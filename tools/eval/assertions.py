@@ -61,6 +61,56 @@ def assert_code_compiles(result: dict, case: dict) -> BehavioralCheckResult:
     )
 
 
+def assert_intent(result: dict, case: dict) -> BehavioralCheckResult:
+    """检查路由到的意图是否正确"""
+    expected_intent = case.get("expected_intent")
+    actual_intent = result.get("intent", "")
+    if not expected_intent:
+        return BehavioralCheckResult("intent", True, "No intent check required")
+    passed = actual_intent == expected_intent
+    return BehavioralCheckResult(
+        check_type="intent",
+        passed=passed,
+        detail=f"Intent: {actual_intent}" if passed else f"Expected intent '{expected_intent}', got '{actual_intent}'",
+        expected=expected_intent,
+        actual=actual_intent,
+    )
+
+
+def assert_tools_used(result: dict, case: dict) -> BehavioralCheckResult:
+    """检查是否使用了期望的工具（至少用一个）"""
+    expected_tools = case.get("expected_tools", [])
+    used_tools = result.get("tools_used", [])
+    if not expected_tools:
+        return BehavioralCheckResult("tools_used", True, "No tool check required")
+    matched = [t for t in expected_tools if t in used_tools]
+    passed = len(matched) > 0 if len(expected_tools) > 0 else True
+    return BehavioralCheckResult(
+        check_type="tools_used",
+        passed=passed,
+        detail=f"Tools matched: {matched}" if passed else f"Expected one of {expected_tools}, used {used_tools}",
+        expected=expected_tools,
+        actual=used_tools,
+    )
+
+
+def assert_forbid_tools(result: dict, case: dict) -> BehavioralCheckResult:
+    """检查是否没有使用被禁止的工具（负路径测试）"""
+    forbidden = case.get("forbidden_tools", [])
+    used_tools = result.get("tools_used", [])
+    if not forbidden:
+        return BehavioralCheckResult("forbid_tools", True, "No forbidden tool check")
+    violated = [t for t in forbidden if t in used_tools]
+    passed = len(violated) == 0
+    return BehavioralCheckResult(
+        check_type="forbid_tools",
+        passed=passed,
+        detail="No forbidden tools used" if passed else f"Forbidden tools used: {violated}",
+        expected=f"none of {forbidden}",
+        actual=used_tools,
+    )
+
+
 def assert_blocked(result: dict, case: dict) -> BehavioralCheckResult:
     """检查输入是否被拦截"""
     blocked = result.get("blocked", False)
@@ -151,6 +201,9 @@ def assert_convergence(result: dict, case: dict) -> BehavioralCheckResult:
 ASSERTION_FUNCTIONS = {
     "modules_generated": assert_modules_generated,
     "code_compiles": assert_code_compiles,
+    "intent": assert_intent,
+    "tools_used": assert_tools_used,
+    "forbid_tools": assert_forbid_tools,
     "blocked": assert_blocked,
     "has_interfaces": assert_has_interfaces,
     "has_components": assert_has_components,

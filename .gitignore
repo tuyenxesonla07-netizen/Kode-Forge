@@ -63,6 +63,9 @@ data/
 *.sqlite3
 *.sqlite3-journal
 
+# Generated code output
+src/
+
 # Flask stuff:
 instance/
 .webassets-cache
@@ -222,3 +225,24 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Runtime database files
+tools/data/
+*.sqlite3
+*.db
+
+# Runtime feedback / registry data
+.feedback.json
+.skill_registry.json
+
+# Checkpoint / session runtime state
+.checkpoints/
+.sessions/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
