@@ -30,6 +30,7 @@ LLM Provider 抽象层，支持多种 LLM 后端。
 
 from tools.llm.base import LLMProvider, LLMResponse
 from tools.llm.mock import MockLLMProvider
+from tools.exceptions import LLMProviderNotFoundError
 
 import os
 import logging
@@ -176,7 +177,7 @@ def create_llm_provider(
             )
         return GeminiProvider(api_key=api_key, model=model, **kwargs)
 
-    raise ValueError(f"Unknown LLM backend: {backend}")
+    raise LLMProviderNotFoundError(backend)
 
 
 __all__ = [

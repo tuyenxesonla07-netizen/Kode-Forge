@@ -14,20 +14,20 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import List
+from typing import List, Pattern
 
-# ─── 注入/越权模式 ────────────────────────────────────────────
-INJECTION_PATTERNS = [
-    r"忽略(之前|上面|以上|前面)?的?(所有)?(指令|提示|规则|设定)",
-    r"ignore (all )?(previous|above) (instructions|prompts)",
-    r"(打印|输出|告诉我|透露).{0,8}(system prompt|系统提示词|系统指令)",
-    r"你(现在|从现在起)?(是|扮演|假装)",
-    r"进入开发者模式",
-    r"DROP\s+TABLE",
-    r"rm\s+-rf",
-    r"(给我|发我|输出).{0,10}(api[_\s]?key|密钥|秘钥)",
-    r"(把|将)?(所有|全部)?(用户|客户)(数据|信息|名单)(都)?(给|发|导出)",
-    r"(reveal|show|print).{0,10}(your )?(system|instruction|prompt)",
+# ─── 注入/越权模式（预编译） ─────────────────────────────────────────
+INJECTION_PATTERNS: List[Pattern] = [
+    re.compile(r"忽略(之前|上面|以上|前面)?的?(所有)?(指令|提示|规则|设定)", re.IGNORECASE),
+    re.compile(r"ignore (all )?(previous|above) (instructions|prompts)", re.IGNORECASE),
+    re.compile(r"(打印|输出|告诉我|透露).{0,8}(system prompt|系统提示词|系统指令)", re.IGNORECASE),
+    re.compile(r"你(现在|从现在起)?(是|扮演|假装)", re.IGNORECASE),
+    re.compile(r"进入开发者模式", re.IGNORECASE),
+    re.compile(r"DROP\s+TABLE", re.IGNORECASE),
+    re.compile(r"rm\s+-rf", re.IGNORECASE),
+    re.compile(r"(给我|发我|输出).{0,10}(api[_\s]?key|密钥|秘钥)", re.IGNORECASE),
+    re.compile(r"(把|将)?(所有|全部)?(用户|客户)(数据|信息|名单)(都)?(给|发|导出)", re.IGNORECASE),
+    re.compile(r"(reveal|show|print).{0,10}(your )?(system|instruction|prompt)", re.IGNORECASE),
 ]
 
 # ─── PII 脱敏模式 ─────────────────────────────────────────────
@@ -111,7 +111,7 @@ class InputGuard:
 
         # 2. 注入检测
         for pattern in INJECTION_PATTERNS:
-            if re.search(pattern, text, re.IGNORECASE):
+            if pattern.search(text):
                 self.blocked_count += 1
                 return InputCheckResult(
                     passed=False,

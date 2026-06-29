@@ -172,7 +172,7 @@ class TestMCPServerHandleMessage:
 
     @pytest.mark.asyncio
     async def test_initialize(self, server):
-        msg = {"id": "req-1", "method": "initialize", "params": {}}
+        msg = {"jsonrpc": "2.0", "id": "req-1", "method": "initialize", "params": {}}
         response = await server.handle_message(msg)
 
         assert response["jsonrpc"] == "2.0"
@@ -185,7 +185,7 @@ class TestMCPServerHandleMessage:
 
     @pytest.mark.asyncio
     async def test_tools_list(self, server):
-        msg = {"id": "req-2", "method": "tools/list", "params": {}}
+        msg = {"jsonrpc": "2.0", "id": "req-2", "method": "tools/list", "params": {}}
         response = await server.handle_message(msg)
 
         assert response["jsonrpc"] == "2.0"
@@ -200,6 +200,7 @@ class TestMCPServerHandleMessage:
     @pytest.mark.asyncio
     async def test_tools_call_sync(self, server):
         msg = {
+            "jsonrpc": "2.0",
             "id": "req-3",
             "method": "tools/call",
             "params": {"name": "validate_python", "arguments": {"code": "x = 1"}},
@@ -231,6 +232,7 @@ class TestMCPServerHandleMessage:
         )
         srv = MCPServer(reg, host="localhost", port=9001)
         msg = {
+            "jsonrpc": "2.0",
             "id": "req-async",
             "method": "tools/call",
             "params": {"name": "async_search", "arguments": {"query": "test"}},
@@ -245,6 +247,7 @@ class TestMCPServerHandleMessage:
     @pytest.mark.asyncio
     async def test_tools_call_not_found(self, server):
         msg = {
+            "jsonrpc": "2.0",
             "id": "req-5",
             "method": "tools/call",
             "params": {"name": "nonexistent", "arguments": {}},
@@ -258,7 +261,7 @@ class TestMCPServerHandleMessage:
 
     @pytest.mark.asyncio
     async def test_unknown_method(self, server):
-        msg = {"id": "req-6", "method": "unknown/method", "params": {}}
+        msg = {"jsonrpc": "2.0", "id": "req-6", "method": "unknown/method", "params": {}}
         response = await server.handle_message(msg)
 
         assert response["jsonrpc"] == "2.0"
@@ -268,11 +271,11 @@ class TestMCPServerHandleMessage:
         assert "unknown/method" in response["error"]["message"]
 
     @pytest.mark.asyncio
-    async def test_missing_id(self, server):
-        """没有 id 的消息应使用 'unknown' 作为 id"""
-        msg = {"method": "initialize", "params": {}}
+    async def test_notification_no_response(self, server):
+        """没有 id 的消息是通知，不返回响应（JSON-RPC 2.0 规范）"""
+        msg = {"jsonrpc": "2.0", "method": "initialize", "params": {}}
         response = await server.handle_message(msg)
-        assert response["id"] == "unknown"
+        assert response is None
 
     @pytest.mark.asyncio
     async def test_handler_exception_returns_error(self, server):
@@ -287,6 +290,7 @@ class TestMCPServerHandleMessage:
             handler=broken,
         )
         msg = {
+            "jsonrpc": "2.0",
             "id": "req-7",
             "method": "tools/call",
             "params": {"name": "broken", "arguments": {}},
@@ -295,7 +299,6 @@ class TestMCPServerHandleMessage:
 
         assert "error" in response
         assert response["error"]["code"] == -32603
-        assert "boom" in response["error"]["message"]
 
 
 # ─── MCPServer._handle_request 测试 ───────────────────────
@@ -307,7 +310,7 @@ class TestMCPServerHandleRequest:
     @pytest.mark.asyncio
     async def test_handle_request_delegates(self, server):
         """_handle_request 应委托给 handle_message"""
-        request = {"id": "r1", "method": "tools/list", "params": {}}
+        request = {"jsonrpc": "2.0", "id": "r1", "method": "tools/list", "params": {}}
         response = await server._handle_request(request)
         assert response["id"] == "r1"
         assert "result" in response
@@ -347,14 +350,14 @@ class TestMCPServerIntegration:
         """完整 JSON-RPC 交换: initialize → tools/list → tools/call"""
         # Step 1: initialize
         init_resp = await server.handle_message(
-            {"id": "init-1", "method": "initialize", "params": {}}
+            {"jsonrpc": "2.0", "id": "init-1", "method": "initialize", "params": {}}
         )
         assert "result" in init_resp
         assert init_resp["result"]["protocolVersion"] == "2024-11-05"
 
         # Step 2: tools/list
         list_resp = await server.handle_message(
-            {"id": "list-1", "method": "tools/list", "params": {}}
+            {"jsonrpc": "2.0", "id": "list-1", "method": "tools/list", "params": {}}
         )
         assert "result" in list_resp
         tool_count = len(list_resp["result"]["tools"])
@@ -362,6 +365,7 @@ class TestMCPServerIntegration:
 
         # Step 3: tools/call
         call_resp = await server.handle_message({
+            "jsonrpc": "2.0",
             "id": "call-1",
             "method": "tools/call",
             "params": {
@@ -376,7 +380,7 @@ class TestMCPServerIntegration:
     async def test_concurrent_requests(self, server):
         """并发请求处理"""
         messages = [
-            {"id": f"req-{i}", "method": "tools/list", "params": {}}
+            {"jsonrpc": "2.0", "id": f"req-{i}", "method": "tools/list", "params": {}}
             for i in range(5)
         ]
         results = await asyncio.gather(

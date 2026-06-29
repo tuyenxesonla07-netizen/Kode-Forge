@@ -66,7 +66,7 @@ class ClaudeCodexMultiAgent(Phase1Pipeline, Phase2Pipeline):
         from tools.hitl import AutoApprovalHandler, ManualApprovalHandler, AuditLog
         from tools.observability import Tracer, PipelineMetrics
         from tools.skills import SkillSelector, SkillLoader
-        from tools.workflow import WorkflowEngine, build_pipeline_workflow
+        from tools.workflow import WorkflowEngine
         from agents.supervisor.agent_executor import write_code_artifacts, CodeWriterConfig
         from agents.experts import create_expert_agents
 

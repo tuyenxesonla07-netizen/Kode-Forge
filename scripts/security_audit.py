@@ -17,6 +17,7 @@ scripts/security_audit.py — 部署前安全检查清单。
 
 from __future__ import annotations
 
+import glob
 import json
 import os
 import sys
@@ -137,7 +138,6 @@ def run_checks() -> List[CheckResult]:
     for pattern in sensitive_files:
         if pattern.startswith("*"):
             # 简单检查
-            import glob
             for f in glob.glob(pattern):
                 if os.path.exists(f):
                     tracked_sensitive.append(f)

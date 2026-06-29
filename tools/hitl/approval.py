@@ -16,6 +16,7 @@
 from __future__ import annotations
 
 import logging
+import uuid
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 
@@ -118,12 +119,10 @@ class ManualApprovalHandler(ApprovalHandler):
     def __init__(self, callback_url: str = None):
         self.callback_url = callback_url
         self._pending: dict[str, ApprovalRequest] = {}
-        self._counter = 0
 
     def request_approval(self, tool_name: str, args: dict, risk_level: str,
                          context: dict = None) -> ApprovalResult:
-        self._counter += 1
-        approval_id = f"approval_{self._counter}"
+        approval_id = f"approval_{uuid.uuid4().hex[:12]}"
 
         self._pending[approval_id] = ApprovalRequest(
             tool_name=tool_name,

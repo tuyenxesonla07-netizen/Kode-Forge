@@ -182,7 +182,7 @@ class CombinedScorer:
 
         # 4) Normalise each score dimension to [0, 1]
         ce_norm = _normalize(ce_scores)
-        llm_norm = _normalize(llm_scores)
+        llm_norm = _normalize(llm_scores) if self.llm_scorer is not None else {}
         vec_norm = _normalize(vec_scores)
 
         # 5) Weighted combination

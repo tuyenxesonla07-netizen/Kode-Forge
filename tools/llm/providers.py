@@ -26,7 +26,7 @@ import re
 import time
 from typing import Optional
 
-from tools.llm.base import LLMResponse
+from tools.llm.base import LLMProvider, LLMResponse
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +75,7 @@ def _should_retry(exception: Exception) -> bool:
 # OpenAI-compatible provider
 # ---------------------------------------------------------------------------
 
-class OpenAICompatibleProvider:
+class OpenAICompatibleProvider(LLMProvider):
     """
     Provider for any OpenAI-compatible API.
 
@@ -263,7 +263,7 @@ class OpenAICompatibleProvider:
 # Google Gemini provider
 # ---------------------------------------------------------------------------
 
-class GeminiProvider:
+class GeminiProvider(LLMProvider):
     """
     Google Gemini LLM Provider.
 

@@ -28,7 +28,7 @@ import random
 import re
 import time
 
-from tools.llm.base import LLMResponse
+from tools.llm.base import LLMProvider, LLMResponse
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +39,7 @@ _BASE_DELAY_SECONDS = 2.0
 _DEFAULT_TIMEOUT_SECONDS = 120.0
 
 
-class AnthropicClaudeProvider:
+class AnthropicClaudeProvider(LLMProvider):
     """
     Anthropic Claude API Provider
 

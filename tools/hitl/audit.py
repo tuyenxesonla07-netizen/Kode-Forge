@@ -156,13 +156,20 @@ class AuditLog:
 
     @classmethod
     def _mask_pii_in_args(cls, args: dict) -> dict:
-        """对 args 字典中的 PII 进行脱敏"""
+        """对 args 字典中的 PII 进行脱敏（递归处理 str/dict/list/tuple/set）"""
         masked = {}
         for key, value in args.items():
             if isinstance(value, str):
                 masked[key] = cls._mask_pii(value)
             elif isinstance(value, dict):
                 masked[key] = cls._mask_pii_in_args(value)
+            elif isinstance(value, (list, tuple, set)):
+                masked[key] = type(value)(
+                    cls._mask_pii(v) if isinstance(v, str)
+                    else cls._mask_pii_in_args(v) if isinstance(v, dict)
+                    else v
+                    for v in value
+                )
             else:
                 masked[key] = value
         return masked

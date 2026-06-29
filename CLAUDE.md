@@ -45,13 +45,7 @@ User Requirement
 | `tools/guardrails/` | Security | `InputGuard` (injection/PII) + `OutputGuard` (code safety/leak) |
 | `tools/memory/` | Memory | Short-term + long-term memory + `SessionState` checkpointing |
 | `tools/hitl/` | HITL | Risk-based `AutoApprovalHandler` / `ManualApprovalHandler` + `AuditLog` |
-| `tools/workflow/` | DAG Engine | Topological sort + parallel branch execution |
-| `tools/observability/` | Observability | Per-request `Tracer` + `PipelineMetrics` |
-| `tools/eval/` | Evaluation | 25 behavioral cases × 5 dimensions |
-| `tools/skills/` | Skills | Markdown-based skill system (3 built-in skills) |
-| `tools/mcp/` | MCP Server | JSON-RPC over SSE tool server |
-| `tools/stores/` | State Stores | Requirement, interface, spec stores |
-| `tools/messaging/` | Message Bus | Pub/sub with topics |
+| `tools/workflow/` | DAG Engine + Message Bus | Topological sort + parallel branch execution + pub/sub messaging |
 | `tools/llm/` | LLM Abstraction | Mock + Anthropic + OpenAI-compatible + Gemini providers |
 | `tools/rag/` | RAG System | Dual-engine: Search (BM25+Vector+Graph) + Cognitive (Intent→Memory→Skill) |
 | `tools/cc_switch.py` | Model Switcher | Multi-provider model switching + connectivity testing |

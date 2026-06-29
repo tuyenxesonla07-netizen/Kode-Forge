@@ -22,7 +22,7 @@
 #     from agents.supervisor import CodexSupervisor
 #     from tools.rag import RAGPipeline
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 
 __all__ = [
     # Layer 1+2 (lazy — imported on access)
@@ -61,7 +61,7 @@ class _LazyModule(ModuleType):
     _LAZY_NAMES = {
         "generate_code": ("agents.pipeline", "generate_code"),
         "Pipeline": ("agents.pipeline", "Pipeline"),
-        "ClaudeCodexMultiAgent": ("agents.supervisor", "ClaudeCodexMultiAgent"),
+        "ClaudeCodexMultiAgent": ("agents.pipeline", "ClaudeCodexMultiAgent"),
         "CodexSupervisor": ("agents.supervisor", "CodexSupervisor"),
         "Requirement": ("agents.supervisor", "Requirement"),
         "ModuleTask": ("agents.supervisor", "ModuleTask"),
