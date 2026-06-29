@@ -9,6 +9,8 @@ from dataclasses import dataclass, field
 from typing import List, Dict, Set, Tuple
 from collections import deque
 
+from tools.exceptions import DependencyCycleError
+
 
 @dataclass
 class DependencyGraph:
@@ -53,11 +55,8 @@ class DependencyGraph:
                         queue.append(module)
 
         if len(result) != len(self.nodes):
-            cycle_nodes = self.nodes - set(result)
-            raise ValueError(
-                f"循环依赖 detected among: {cycle_nodes}. "
-                f"Partial order: {result}"
-            )
+            cycle_nodes = sorted(self.nodes - set(result))
+            raise DependencyCycleError(cycle_nodes)
 
         return result
 
@@ -91,7 +90,7 @@ class DependencyGraph:
         try:
             self.topological_sort()
             return False
-        except ValueError:
+        except DependencyCycleError:
             return True
 
     def get_parallel_groups(self) -> List[List[str]]:
@@ -110,7 +109,8 @@ class DependencyGraph:
             # 找出入度为 0 的剩余节点
             group = [n for n in remaining if in_degree[n] == 0]
             if not group:
-                raise ValueError(f"Cannot find parallel group, remaining: {remaining}")
+                remaining_sorted = sorted(remaining)
+                raise DependencyCycleError(remaining_sorted)
 
             groups.append(group)
 

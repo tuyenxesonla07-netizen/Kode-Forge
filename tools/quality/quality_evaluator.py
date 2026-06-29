@@ -86,8 +86,9 @@ class QualityEvaluator:
             failed_gates = gate_eval["failed_gates"]
             gates_passed = gate_eval["passed"]
         else:
-            gates_passed = all_passed and not has_critical
-
+            # 无门禁时：仍需满足基本质量标准（score >= 0.5）
+            gates_passed = (all_passed and not has_critical
+                            and quality_score >= 0.5)
         # 收敛检测
         should_continue, convergence_status = self.convergence_detector.should_continue(
             iteration=iteration,

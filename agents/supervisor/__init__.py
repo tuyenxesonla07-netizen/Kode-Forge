@@ -17,10 +17,12 @@ import os
 from dataclasses import dataclass, field
 from typing import Dict, List, Any, Optional
 
+from typing import TYPE_CHECKING
+
 logger = logging.getLogger(__name__)
 
-# ── ClaudeCodexMultiAgent (full pipeline orchestrator) ─────────────────
-from agents.pipeline import ClaudeCodexMultiAgent  # noqa: E402
+if TYPE_CHECKING:
+    from agents.pipeline import ClaudeCodexMultiAgent
 
 
 @dataclass
@@ -602,20 +604,19 @@ class CodexSupervisor:
                     if file_path in final_files:
                         code_artifact[module_name] = final_files[file_path]
 
-        # Print code generation statistics
+        # Log code generation statistics
         total_lines = 0
-        print("\n" + "=" * 60)
-        print("  Phase 1 -- Code Generation Statistics")
-        print("=" * 60)
+        logger.info("Phase 1 -- Code Generation Statistics")
+        logger.info("=" * 60)
         for module_name, code in code_artifact.items():
             lines = code.count("\n") + 1 if code else 0
             status = "OK" if code else "FAIL"
-            print(f"  [{status}] {module_name}: {lines} lines")
+            logger.info("  [%s] %s: %d lines", status, module_name, lines)
             total_lines += lines
-        print("  --------------------------------")
         success_count = len([c for c in code_artifact.values() if c])
-        print(f"  Total: {total_lines} lines ({success_count}/{len(code_artifact)} succeeded)")
-        print("=" * 60 + "\n")
+        logger.info("  --------------------------------")
+        logger.info("  Total: %d lines (%d/%d succeeded)", total_lines, success_count, len(code_artifact))
+        logger.info("=" * 60)
 
         # Store conflict report for caller
         self._last_conflict_report = conflict_report

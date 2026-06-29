@@ -527,12 +527,25 @@ class CodeWriterConfig:
 
 
 def _resolve_path(module_name: str, config: CodeWriterConfig):
-    """根据模板解析模块文件路径"""
+    """根据模板解析模块文件路径（带路径遍历防护）"""
+    # Security: validate module_name to prevent path traversal
+    if not module_name or module_name != Path(module_name).name:
+        raise ValueError(
+            f"Invalid module name '{module_name}'. "
+            "Name must be a simple identifier without path separators."
+        )
     path_str = config.module_template.format(
         base_dir=config.base_dir,
         module=module_name,
     )
-    return Path(path_str)
+    resolved = Path(path_str).resolve()
+    # Security: ensure resolved path stays within base_dir
+    base_resolved = Path(config.base_dir).resolve()
+    if not str(resolved).startswith(str(base_resolved)):
+        raise ValueError(
+            f"Module path {resolved} escapes base directory {base_resolved}"
+        )
+    return resolved
 
 
 def write_code_artifacts(

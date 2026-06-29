@@ -237,34 +237,8 @@ class RAGPipeline:
         # 1. Intent
         intent = self._intent.classify(query)
 
-        # 2. Multi-path retrieval
-        ranked_lists: list[list[Document]] = []
-
-        if self.config.enable_bm25:
-            bm25_results = self._bm25.retrieve(query, top_k=self.config.bm25_top_k)
-            if bm25_results:
-                ranked_lists.append(bm25_results)
-
-        if self.config.enable_vector:
-            vector_results = self._vector.retrieve(query, top_k=self.config.vector_top_k)
-            if vector_results:
-                ranked_lists.append(vector_results)
-
-        if self.config.enable_graph:
-            graph_results = self._graph.retrieve(query, top_k=self.config.graph_top_k)
-            if graph_results:
-                ranked_lists.append(graph_results)
-
-        # 3. Fusion
-        fused = _reciprocal_rank_fusion(ranked_lists)
-        fusion_top_k = self.config.fusion_top_k
-        fused = fused[:fusion_top_k]
-
-        # 4. Reranking
-        if self.config.enable_reranker and fused:
-            reranked = self._reranker.rerank(query, fused, top_k=top_k)
-        else:
-            reranked = fused[:top_k] if top_k else fused
+        # 2-4. Multi-path retrieval + Fusion + Reranking (shared)
+        reranked, ranked_lists = self._retrieve_and_fusion(query, top_k=top_k)
 
         # 5. Answer generation
         answer = _generate_answer(query, reranked, intent)
@@ -274,12 +248,11 @@ class RAGPipeline:
             intent=intent,
             retrieved_documents=[d for lst in ranked_lists for d in lst],
             reranked_documents=reranked,
-            fused_documents=fused,
+            fused_documents=reranked,  # post-fusion+rerank represents the final fused set
             answer=answer,
             metadata={
                 "num_documents": len(self._documents),
                 "num_retrieved": sum(len(lst) for lst in ranked_lists),
-                "num_fused": len(fused),
                 "num_reranked": len(reranked),
             },
         )
@@ -341,33 +314,15 @@ class RAGPipeline:
             if matched_skill:
                 skill_context.append(f"[Skill: {matched_skill.name}]\n{matched_skill.content}")
 
-        # 5. Selective retrieval based on strategy
-        ranked_lists: list[list[Document]] = []
-
-        if strategy.use_bm25:
-            bm25_results = self._bm25.retrieve(query, top_k=self.config.bm25_top_k)
-            if bm25_results:
-                ranked_lists.append(bm25_results)
-
-        if strategy.use_vector:
-            vector_results = self._vector.retrieve(query, top_k=self.config.vector_top_k)
-            if vector_results:
-                ranked_lists.append(vector_results)
-
-        if strategy.use_graph:
-            graph_results = self._graph.retrieve(query, top_k=self.config.graph_top_k)
-            if graph_results:
-                ranked_lists.append(graph_results)
-
-        # 6. Fusion + Reranking
-        fused = _reciprocal_rank_fusion(ranked_lists)
-        fused = fused[: self.config.fusion_top_k]
-
-        if self.config.enable_reranker and fused:
-            reranked = self._reranker.rerank(query, fused, top_k=top_k or strategy.rerank_top_k)
-        else:
-            k = top_k or strategy.rerank_top_k
-            reranked = fused[:k]
+        # 5. Selective retrieval based on strategy (shared helper)
+        reranked, ranked_lists = self._retrieve_and_fusion(
+            query,
+            use_bm25=strategy.use_bm25,
+            use_vector=strategy.use_vector,
+            use_graph=strategy.use_graph,
+            top_k=top_k,
+            default_top_k=strategy.rerank_top_k,
+        )
 
         # 7. Build enriched answer
         answer = _generate_cognitive_answer(
@@ -400,12 +355,12 @@ class RAGPipeline:
             intent=intent,
             retrieved_documents=[d for lst in ranked_lists for d in lst],
             reranked_documents=reranked,
-            fused_documents=fused,
+            fused_documents=reranked,
             answer=answer,
             metadata={
                 "num_documents": len(self._documents),
                 "num_retrieved": sum(len(lst) for lst in ranked_lists),
-                "num_fused": len(fused),
+                "num_fused": len(reranked),
                 "num_reranked": len(reranked),
                 "mode": strategy.mode,
                 "strategy": strategy.to_dict(),
@@ -413,6 +368,48 @@ class RAGPipeline:
                 "skill_matched": matched_skill.name if matched_skill else None,
             },
         )
+
+    def _retrieve_and_fusion(
+        self,
+        query: str,
+        use_bm25: bool = True,
+        use_vector: bool = True,
+        use_graph: bool = True,
+        top_k: int | None = None,
+        default_top_k: int | None = None,
+    ) -> tuple[list[Document], list[list[Document]]]:
+        """共享的检索+融合逻辑，供 query() 和 query_cognitive() 复用。
+
+        Returns:
+            (reranked_or_fused documents, raw ranked_lists)
+        """
+        ranked_lists: list[list[Document]] = []
+
+        if use_bm25 and self.config.enable_bm25:
+            bm25_results = self._bm25.retrieve(query, top_k=self.config.bm25_top_k)
+            if bm25_results:
+                ranked_lists.append(bm25_results)
+
+        if use_vector and self.config.enable_vector:
+            vector_results = self._vector.retrieve(query, top_k=self.config.vector_top_k)
+            if vector_results:
+                ranked_lists.append(vector_results)
+
+        if use_graph and self.config.enable_graph:
+            graph_results = self._graph.retrieve(query, top_k=self.config.graph_top_k)
+            if graph_results:
+                ranked_lists.append(graph_results)
+
+        fused = _reciprocal_rank_fusion(ranked_lists)
+        fused = fused[: self.config.fusion_top_k]
+
+        if self.config.enable_reranker and fused:
+            reranked = self._reranker.rerank(query, fused, top_k=top_k)
+        else:
+            k = top_k if top_k is not None else default_top_k
+            reranked = fused[:k] if k else fused
+
+        return reranked, ranked_lists
 
     # ---- properties -------------------------------------------------------
 

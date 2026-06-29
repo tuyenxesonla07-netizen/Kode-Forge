@@ -17,26 +17,26 @@ from dataclasses import dataclass, field
 
 from tools.guardrails.input_guard import mask_pii
 
-# ─── 泄漏模式 ─────────────────────────────────────────────────
-LEAK_PATTERNS = [
-    r"sk-[A-Za-z0-9]{10,}",               # API key 样式
-    r"(系统提示词|system prompt)[:：]",     # 系统提示词泄漏
-    r"\[INTERNAL\]",
-    r"(my|the) system (prompt|instruction)",
+# ─── 泄漏模式（预编译） ─────────────────────────────────────────
+LEAK_PATTERNS: list[re.Pattern] = [
+    re.compile(r"sk-[A-Za-z0-9]{10,}", re.IGNORECASE),
+    re.compile(r"(系统提示词|system prompt)[:：]", re.IGNORECASE),
+    re.compile(r"\[INTERNAL\]", re.IGNORECASE),
+    re.compile(r"(my|the) system (prompt|instruction)", re.IGNORECASE),
 ]
 
 # ─── 越权承诺模式 (模式 → 替换) ──────────────────────────────
-OVERPROMISE_PATTERNS: list[tuple] = [
+OVERPROMISE_PATTERNS: list[tuple[re.Pattern, str]] = [
     (
-        r"(保证|确保|承诺)[^。，,]{0,6}(全额)?退款",
+        re.compile(r"(保证|确保|承诺)[^。，,]{0,6}(全额)?退款"),
         "按政策为您申请退款",
     ),
     (
-        r"(百分之?百|100%)[^。，,]{0,6}(成功|解决|退款)",
+        re.compile(r"(百分之?百|100%)[^。，,]{0,6}(成功|解决|退款)"),
         "尽快为您处理",
     ),
     (
-        r"(一定|肯定)(能|会)[^。，,]{0,4}(退|赔|解决)",
+        re.compile(r"(一定|肯定)(能|会)[^。，,]{0,4}(退|赔|解决)"),
         "会按政策为您争取",
     ),
 ]
@@ -105,24 +105,24 @@ class OutputGuard:
 
         # 2. 泄漏拦截 — 直接替换为兜底回复
         for pattern in LEAK_PATTERNS:
-            if re.search(pattern, text, re.IGNORECASE):
+            if pattern.search(text):
                 return OutputCheckResult(
                     passed=False,
                     text=FALLBACK_REPLY,
-                    issues=[f"检测到敏感信息泄漏风险（{pattern}），已替换为兜底回复"],
+                    issues=[f"检测到敏感信息泄漏风险（{pattern.pattern}），已替换为兜底回复"],
                 )
 
         # 3. 越权承诺改写/阻断
         for pattern, replacement in OVERPROMISE_PATTERNS:
-            if re.search(pattern, text):
+            if pattern.search(text):
                 if self.strict:
                     return OutputCheckResult(
                         passed=False,
                         text=FALLBACK_REPLY,
-                        issues=[f"严格模式：检测到越权承诺（{pattern}），已阻断输出"],
+                        issues=[f"严格模式：检测到越权承诺（{pattern.pattern}），已阻断输出"],
                     )
-                text = re.sub(pattern, replacement, text)
-                issues.append(f"检测到越权承诺（{pattern}），已改写为合规表述")
+                text = pattern.sub(replacement, text)
+                issues.append(f"检测到越权承诺（{pattern.pattern}），已改写为合规表述")
 
         # 4. PII 回流清理
         masked, pii_found = mask_pii(text)

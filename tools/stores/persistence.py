@@ -84,6 +84,12 @@ class StoreDatabase:
     def close(self) -> None:
         self._conn.close()
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.close()
+
     def __del__(self) -> None:
         try:
             self._conn.close()

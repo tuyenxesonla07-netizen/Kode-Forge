@@ -451,6 +451,11 @@ def _cmd_train(args: argparse.Namespace) -> None:
     print(f"  GRPO Training")
     print(f"  {'=' * 50}")
     print(f"  Feedback samples: {store.size}")
+
+    # Apply CLI overrides to config
+    if args.epochs is not None:
+        config.grpo_epochs = args.epochs
+
     print(f"  Epochs: {config.grpo_epochs}")
     print(f"  Learning rate: {config.grpo_learning_rate}")
 

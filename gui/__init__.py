@@ -759,3 +759,10 @@ st.caption(
     "🧠 CC — Claude-Codex Multi-Agent Pipeline | "
     "Schema-first · RAG Dual-Engine · Skill Self-Learning · GRPO Online Optimization"
 )
+
+
+if __name__ == "__main__":
+    import sys
+    import os
+    sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+    main()

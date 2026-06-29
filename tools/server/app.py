@@ -330,7 +330,7 @@ def create_app(
             return JSONResponse(content=result)
         except Exception as e:
             logger.error("[API] Pipeline execution failed: %s", e, exc_info=True)
-            raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500, detail="Internal pipeline error")
 
     # ─── SSE 流式执行 ─────────────────────────────────────────
 
@@ -365,7 +365,7 @@ def create_app(
                 logger.error("[API] Stream pipeline failed: %s", e, exc_info=True)
                 error_data = json.dumps({
                     "tag": "error",
-                    "content": str(e),
+                    "content": "Internal pipeline error",
                 }, ensure_ascii=False)
                 yield f"event: step\ndata: {error_data}\n\n"
                 yield "data: [DONE]\n\n"

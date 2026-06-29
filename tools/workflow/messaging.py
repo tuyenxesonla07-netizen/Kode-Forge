@@ -16,7 +16,7 @@ import threading
 import time
 import uuid
 from collections import defaultdict, deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
 
@@ -97,8 +97,16 @@ class Message:
         return self.meta.get("correlation_id", "")
 
     def is_expired(self) -> bool:
-        """检查消息是否过期"""
-        return False
+        """检查消息是否过期（基于 ttl_ms）"""
+        ttl_ms = self.meta.get("ttl_ms")
+        if ttl_ms is None:
+            return False
+        try:
+            ts = datetime.fromisoformat(self.meta["timestamp"].replace("Z", "+00:00"))
+            elapsed_ms = (datetime.now(timezone.utc) - ts).total_seconds() * 1000
+            return elapsed_ms > ttl_ms
+        except (ValueError, KeyError):
+            return False
 
     def to_dict(self) -> Dict:
         return {"meta": self.meta, "payload": self.payload}
@@ -143,9 +151,15 @@ class MessageBus:
                     except Exception as e:
                         logger.warning("Subscriber error on %s: %s", topic, e)
 
-    def subscribe(self, topic: str, callback: Callable[[Message], None]) -> None:
-        """订阅 topic"""
+    def subscribe(self, topic: str, callback: Callable[[Message], None]) -> Callable[[], None]:
+        """订阅 topic，返回取消订阅函数。
+
+        用法:
+            unsub = bus.subscribe("topic", handler)
+            unsub()  # 取消订阅
+        """
         self._subscribers[topic].append(callback)
+        return lambda: self.unsubscribe(topic, callback)
 
     def unsubscribe(self, topic: str, callback: Callable) -> None:
         """取消订阅"""

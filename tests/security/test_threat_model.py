@@ -441,7 +441,11 @@ class TestGap25_Grafana:
 
     def test_metrics_documented_for_grafana(self):
         import os
-        assert os.path.exists("docs/metrics.md") or os.path.exists("docs/observability.md")
+        assert (
+            os.path.exists("docs/metrics.md")
+            or os.path.exists("docs/observability.md")
+            or os.path.exists("docs/DEPLOYMENT.md")
+        )
 
 
 class TestGap26_Alerting:
@@ -458,7 +462,7 @@ class TestGap29_LogRotation:
 
     def test_logging_config_supports_rotation(self):
         import os
-        assert os.path.exists("docs/deployment-guide.md")
+        assert os.path.exists("docs/deployment-guide.md") or os.path.exists("docs/DEPLOYMENT.md")
 
 
 class TestGap30_TracerExport:

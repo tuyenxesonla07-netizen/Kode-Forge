@@ -123,7 +123,7 @@ class SkillRegistry:
             FileNotFoundError: If source_path doesn't contain SKILL.md.
             ValueError: If skill already exists and overwrite is False.
         """
-        source = Path(source_path)
+        source = Path(source_path).resolve()
         skill_file = source / "SKILL.md"
 
         if not skill_file.exists():
@@ -132,9 +132,22 @@ class SkillRegistry:
                 "Create a SKILL.md file with YAML frontmatter."
             )
 
+        # Security: ensure source is not a symlink and is a real directory
+        if source.is_symlink():
+            raise ValueError(f"Source path must not be a symlink: {source_path}")
+        if not source.is_dir():
+            raise ValueError(f"Source path must be a directory: {source_path}")
+
         content = skill_file.read_text(encoding="utf-8")
         meta, _ = self._parse_frontmatter(content)
         name = meta.get("name", source.name)
+
+        # Security: validate skill name to prevent path traversal
+        if not name or name != Path(name).name:
+            raise ValueError(
+                f"Invalid skill name '{name}'. "
+                "Name must be a simple directory name without path separators."
+            )
 
         if name in self._entries and not overwrite:
             raise ValueError(
@@ -142,10 +155,15 @@ class SkillRegistry:
             )
 
         # Copy to skills directory
-        dest = self.skills_dir / name
+        dest = (self.skills_dir / name).resolve()
+        # Security: ensure dest is inside skills_dir
+        if not str(dest).startswith(str(self.skills_dir.resolve())):
+            raise ValueError(
+                f"Destination {dest} escapes skills directory {self.skills_dir}"
+            )
         if dest.exists():
             shutil.rmtree(dest)
-        shutil.copytree(source, dest)
+        shutil.copytree(source, dest, symlinks=False)
 
         # Register
         skill_meta = SkillMetadata(

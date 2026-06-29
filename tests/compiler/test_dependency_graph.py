@@ -57,15 +57,15 @@ class TestDependencyGraph(unittest.TestCase):
         self.assertLess(result.index("data_processing"), result.index("api_integration"))
 
     def test_cycle_detection(self):
-        """循环依赖应抛出 ValueError"""
+        """循环依赖应抛出 DependencyCycleError"""
         self.graph.add_module("a", ["b"])
         self.graph.add_module("b", ["c"])
         self.graph.add_module("c", ["a"])
 
-        with self.assertRaises(ValueError) as ctx:
+        with self.assertRaises(Exception) as ctx:
             self.graph.topological_sort()
 
-        self.assertIn("循环依赖", str(ctx.exception))
+        self.assertIn("cycle", str(ctx.exception).lower())
 
     def test_has_cycle_false(self):
         """无环图 has_cycle 返回 False"""

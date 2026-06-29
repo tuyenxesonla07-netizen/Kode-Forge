@@ -19,7 +19,6 @@
     result = await engine.execute_async("wf-001", {"input": "用户登录模块"})
 """
 
-import ast
 import asyncio
 import json
 import logging
@@ -29,6 +28,11 @@ from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Callable, Dict, List, Optional
+
+from tools.exceptions import (
+    WorkflowExecutionError,
+    WorkflowPermissionError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -382,10 +386,7 @@ class WorkflowEngine:
             allowed = context.get("allowed_permissions", []) if context else []
             missing = [p for p in node.permissions if p not in allowed]
             if missing and allowed:
-                raise PermissionError(
-                    f"Node '{node.id}' requires permissions {node.permissions}, "
-                    f"missing: {missing}"
-                )
+                raise WorkflowPermissionError(node.id, missing)
 
         # 幂等去重
         if node.idempotent and node.id in getattr(self, '_executed_idempotent', set()):
@@ -403,7 +404,7 @@ class WorkflowEngine:
             )
             if recovery_result.success:
                 return recovery_result.output
-            raise RuntimeError(f"Node {node.id} failed after recovery: {recovery_result.final_error}")
+            raise WorkflowExecutionError(f"Node {node.id} failed after recovery: {recovery_result.final_error}")
 
         # 内置重试逻辑（无 RecoveryManager 时的 fallback）
         last_error = None
@@ -411,7 +412,7 @@ class WorkflowEngine:
             try:
                 async with self._semaphore:
                     if self._shutdown_event.is_set():
-                        raise RuntimeError("Engine is shutting down")
+                        raise WorkflowExecutionError("Engine is shutting down")
                     result = await self._execute_node(node, inputs, context)
                 if node.idempotent:
                     self._executed_idempotent = getattr(self, '_executed_idempotent', set())

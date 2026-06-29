@@ -18,7 +18,7 @@ MCP 服务端实现。
 
 import json
 import logging
-from typing import Dict
+from typing import Dict, Optional
 
 from tools.mcp.tool_registry import ToolRegistry
 
@@ -67,28 +67,49 @@ class MCPServer:
         logger.info("[MCPServer] Starting SSE server at %s:%s", self.host, self.port)
         await self._server.serve()
 
-    async def handle_message(self, message: Dict) -> Dict:
-        """处理单条 JSON-RPC 消息"""
-        msg_id = message.get("id", "unknown")
+    async def handle_message(self, message: Dict) -> Optional[Dict]:
+        """处理单条 JSON-RPC 消息。
+
+        遵循 JSON-RPC 2.0 规范：
+        - 验证 jsonrpc 字段为 "2.0"
+        - 通知（无 id）不返回响应
+        """
+        # Validate JSON-RPC version
+        if message.get("jsonrpc") != "2.0":
+            return {
+                "jsonrpc": "2.0",
+                "id": message.get("id"),
+                "error": {"code": -32600, "message": "Invalid Request: jsonrpc must be '2.0'"},
+            }
+
+        msg_id = message.get("id")
         method = message.get("method", "")
         params = message.get("params", {})
+
+        # Validate method field
+        if not method:
+            return {
+                "jsonrpc": "2.0",
+                "id": msg_id,
+                "error": {"code": -32600, "message": "Invalid Request: missing method"},
+            }
 
         try:
             if method == "tools/list":
                 tools = self.registry.to_mcp_format()
-                return {"jsonrpc": "2.0", "id": msg_id, "result": {"tools": tools}}
+                response = {"jsonrpc": "2.0", "id": msg_id, "result": {"tools": tools}}
 
             elif method == "tools/call":
                 name = params.get("name", "")
                 arguments = params.get("arguments", {})
                 result = await self.registry.call(name, arguments)
-                return {
+                response = {
                     "jsonrpc": "2.0", "id": msg_id,
                     "result": {"content": str(result), "isError": False},
                 }
 
             elif method == "initialize":
-                return {
+                response = {
                     "jsonrpc": "2.0", "id": msg_id,
                     "result": {
                         "protocolVersion": "2024-11-05",
@@ -98,17 +119,22 @@ class MCPServer:
                 }
 
             else:
-                return {
+                response = {
                     "jsonrpc": "2.0", "id": msg_id,
                     "error": {"code": -32601, "message": f"Method not found: {method}"},
                 }
 
         except Exception as e:
             logger.error("[MCPServer] Error handling %s: %s", method, e)
-            return {
+            response = {
                 "jsonrpc": "2.0", "id": msg_id,
-                "error": {"code": -32603, "message": str(e)},
+                "error": {"code": -32603, "message": "Internal error"},
             }
+
+        # Notifications (no id) should not return a response per JSON-RPC 2.0 spec
+        if msg_id is None:
+            return None
+        return response
 
     async def _handle_request(self, request: Dict) -> Dict:
         """处理 HTTP POST 请求（FastAPI 路由用）"""
