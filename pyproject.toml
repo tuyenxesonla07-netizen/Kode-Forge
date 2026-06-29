@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "claude-codex-multi-agent"
-version = "0.3.0"
+version = "0.4.0.dev0"
 description = "Schema-First Multi-Agent Development Pipeline with RAG dual-engine, skill self-learning, and GRPO optimization"
 readme = "README.md"
 license = {text = "MIT"}

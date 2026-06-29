@@ -22,7 +22,7 @@
 #     from agents.supervisor import CodexSupervisor
 #     from tools.rag import RAGPipeline
 
-__version__ = "0.3.0"
+__version__ = "0.4.0.dev0"
 
 __all__ = [
     # Layer 1+2 (lazy — imported on access)
