@@ -78,9 +78,9 @@ def _get_skill_manager():
 
 
 def _get_pipeline_system():
-    """Get or create a fresh ClaudeCodexMultiAgent instance."""
-    from agents.pipeline import ClaudeCodexMultiAgent
-    return ClaudeCodexMultiAgent(
+    """Get or create a fresh KodeForge instance."""
+    from agents.pipeline import KodeForge
+    return KodeForge(
         llm_backend="mock",
         enable_guardrails=False,
         enable_memory=False,

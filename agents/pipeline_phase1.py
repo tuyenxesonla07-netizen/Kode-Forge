@@ -2,8 +2,8 @@
 """
 Phase 1 pipeline logic — requirement decomposition → expert analysis → code generation.
 
-This module is mixed into ClaudeCodexMultiAgent via composition.
-Do not import directly; use ClaudeCodexMultiAgent instead.
+This module is mixed into KodeForge via composition.
+Do not import directly; use KodeForge instead.
 """
 
 from __future__ import annotations
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class Phase1Pipeline:
-    """Phase 1 logic — attached to ClaudeCodexMultiAgent via composition."""
+    """Phase 1 logic — attached to KodeForge via composition."""
 
     def run_phase1(self, user_requirement):
         """Phase 1: Requirement → Module Specs → Code Generation."""

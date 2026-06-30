@@ -2,7 +2,7 @@
 """
 Pipeline Integration Tests
 
-端到端系统流测试，验证 ClaudeCodexMultiAgent 入口点的完整流程：
+端到端系统流测试，验证 KodeForge 入口点的完整流程：
   - Phase 1: 需求 → 编译 → 专家分析 → 代码生成
   - Phase 2: 审查 → 收敛检测
   - 专家 Agent 接线
@@ -18,25 +18,25 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 
 # Import the package __init__ via importlib
 spec = importlib.util.spec_from_file_location(
-    "claude_codex_multi_agent",
+    "kodeforge",
     os.path.join(os.path.dirname(__file__), "..", "..", "__init__.py"),
 )
 ccm_module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(ccm_module)
 # After exec, sys.modules[__name__] may be a _LazyModule proxy
-_ccm = sys.modules.get("claude_codex_multi_agent", ccm_module)
-ClaudeCodexMultiAgent = _ccm.ClaudeCodexMultiAgent
+_ccm = sys.modules.get("kodeforge", ccm_module)
+KodeForge = _ccm.KodeForge
 
 
 # 完整名称 (expert_agents keys)
 FILE_MODULE_NAMES = ["authentication", "data_processing", "api_integration"]
 
 
-class TestClaudeCodexMultiAgent(unittest.TestCase):
+class TestKodeForge(unittest.TestCase):
     """主系统入口测试"""
 
     def setUp(self):
-        self.system = ClaudeCodexMultiAgent()
+        self.system = KodeForge()
 
     def test_initialization(self):
         """系统应初始化所有组件"""
@@ -149,7 +149,7 @@ class TestExpertAgentWiring(unittest.TestCase):
     """专家 Agent 接线测试"""
 
     def setUp(self):
-        self.system = ClaudeCodexMultiAgent()
+        self.system = KodeForge()
 
     def test_expert_validate_input(self):
         """专家 Agent 应正确验证输入"""

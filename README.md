@@ -1,4 +1,4 @@
-# 🧠 Claude-Codex Multi-Agent Pipeline (CC)
+# 🧠 KodeForge (CC)
 
 > **Write JSON Schema → Get Secure, Production-Ready Code from Multi-Agent Pipeline**
 
@@ -35,7 +35,7 @@ cc mcp                     # MCP JSON-RPC over stdio/SSE
 ### Install
 
 ```bash
-git clone <repo-url> && cd claude-codex-multi-agent
+git clone <repo-url> && cd kodeforge
 pip install -e ".[dev]"
 ```
 
@@ -79,8 +79,8 @@ pipeline = Pipeline(config_dir="config", llm_backend="mock")
 result = pipeline.run("Build a REST API with auth")
 
 # Layer 3: Full multi-agent system
-from agents.pipeline import ClaudeCodexMultiAgent
-agent = ClaudeCodexMultiAgent()
+from agents.pipeline import KodeForge
+agent = KodeForge()
 ```
 
 ## 🎯 Use Cases
@@ -321,7 +321,7 @@ python -m pytest tests/ -v
 - [ ] Visual drag-drop workflow builder
 - [ ] Batch trajectory training pipeline
 - [ ] Enterprise multi-tenant deployment
-- [ ] PyPI publication (`pip install claude-codex-multi-agent`)
+- [ ] PyPI publication (`pip install kodeforge`)
 
 ## License
 

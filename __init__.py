@@ -1,4 +1,4 @@
-# Claude-Codex Multi-Agent Pipeline
+# KodeForge
 # Schema-First Multi-Agent Development Pipeline
 #
 # 3-Layer API:
@@ -13,8 +13,8 @@
 #     result = pipe.run("Build auth module with JWT")
 #
 #   Layer 3 — Full multi-agent system:
-#     from agents.pipeline import ClaudeCodexMultiAgent
-#     pipeline = ClaudeCodexMultiAgent(config_dir="config", llm_backend="anthropic")
+#     from agents.pipeline import KodeForge
+#     pipeline = KodeForge(config_dir="config", llm_backend="anthropic")
 #
 # For all other imports, use the submodule path:
 #     from tools.compiler import PipelineCompiler
@@ -29,7 +29,7 @@ __all__ = [
     "generate_code",
     "Pipeline",
     # Layer 3 (lazy — imported on access)
-    "ClaudeCodexMultiAgent",
+    "KodeForge",
     "CodexSupervisor",
     "Requirement",
     "ModuleTask",
@@ -61,7 +61,7 @@ class _LazyModule(ModuleType):
     _LAZY_NAMES = {
         "generate_code": ("agents.pipeline", "generate_code"),
         "Pipeline": ("agents.pipeline", "Pipeline"),
-        "ClaudeCodexMultiAgent": ("agents.pipeline", "ClaudeCodexMultiAgent"),
+        "KodeForge": ("agents.pipeline", "KodeForge"),
         "CodexSupervisor": ("agents.supervisor", "CodexSupervisor"),
         "Requirement": ("agents.supervisor", "Requirement"),
         "ModuleTask": ("agents.supervisor", "ModuleTask"),

@@ -84,7 +84,7 @@ class WebhookAlerter:
             "message": message,
             "level": level.value,
             "timestamp": datetime.now().isoformat(timespec="seconds"),
-            "service": "claude-codex-multi-agent",
+            "service": "kodeforge",
             "details": details or {},
         }
 

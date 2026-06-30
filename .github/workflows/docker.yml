@@ -77,10 +77,10 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            docker stop claude-codex-multi-agent || true
-            docker rm claude-codex-multi-agent || true
+            docker stop kodeforge || true
+            docker rm kodeforge || true
             docker run -d \
-              --name claude-codex-multi-agent \
+              --name kodeforge \
               --restart unless-stopped \
               -p 9000:9000 \
               -e ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }} \

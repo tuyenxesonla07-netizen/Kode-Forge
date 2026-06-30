@@ -1,6 +1,6 @@
 # agents/pipeline.py
 """
-ClaudeCodexMultiAgent — the full multi-agent pipeline orchestrator.
+KodeForge — the full multi-agent pipeline orchestrator.
 
 Integrates:
   Phase 1: Schema-driven requirement decomposition → code generation
@@ -19,12 +19,12 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
-class ClaudeCodexMultiAgent:
+class KodeForge:
     """
-    Claude-Codex Multi-Agent Pipeline — Full Architecture.
+    KodeForge Pipeline — Full Architecture.
 
     Usage:
-        pipeline = ClaudeCodexMultiAgent(
+        pipeline = KodeForge(
             config_dir="config",
             llm_backend="mock",
             enable_guardrails=True,
@@ -145,7 +145,7 @@ class ClaudeCodexMultiAgent:
         # ── Observability ──
         self.enable_observability = enable_observability
         if enable_observability:
-            self.tracer = Tracer("claude_codex_pipeline")
+            self.tracer = Tracer("kodeforge_pipeline")
             self.metrics = PipelineMetrics()
 
         # ── Skills (Plugin-based) ──
@@ -510,7 +510,7 @@ class Pipeline:
     @property
     def inner(self):
         if self._inner is None:
-            self._inner = ClaudeCodexMultiAgent(
+            self._inner = KodeForge(
                 config_dir=self.config_dir,
                 llm_backend=self.llm_backend,
                 llm_api_key=self.llm_api_key,

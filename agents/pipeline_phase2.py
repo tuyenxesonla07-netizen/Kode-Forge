@@ -2,8 +2,8 @@
 """
 Phase 2 pipeline logic — code review → fix loop with convergence detection.
 
-This module is mixed into ClaudeCodexMultiAgent via composition.
-Do not import directly; use ClaudeCodexMultiAgent instead.
+This module is mixed into KodeForge via composition.
+Do not import directly; use KodeForge instead.
 """
 
 from __future__ import annotations
@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 class Phase2Pipeline:
-    """Phase 2 logic — attached to ClaudeCodexMultiAgent via composition."""
+    """Phase 2 logic — attached to KodeForge via composition."""
 
     def run_phase2(self, code_artifact, compiled_pipeline=None):
         """Phase 2: Code Review → Fix Loop with Convergence Detection."""

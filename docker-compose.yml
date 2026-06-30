@@ -17,7 +17,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: claude-codex-multi-agent
+    container_name: kodeforge
     ports:
       - "${MCP_PORT:-9000}:9000"
     environment:

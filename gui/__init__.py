@@ -30,7 +30,7 @@ def main():
     """Entry point for the Streamlit GUI."""
     # Page config
     st.set_page_config(
-        page_title="CC — Claude-Codex Multi-Agent Pipeline",
+        page_title="KodeForge",
         page_icon="🧠",
         layout="wide",
         initial_sidebar_state="expanded",
@@ -72,7 +72,7 @@ def main():
     # Footer
     st.divider()
     st.caption(
-        "🧠 CC — Claude-Codex Multi-Agent Pipeline | "
+        "🧠 KodeForge | "
         "Schema-first · RAG Dual-Engine · Skill Self-Learning · GRPO Online Optimization"
     )
 
@@ -83,7 +83,7 @@ def _render_sidebar():
 
     with st.sidebar:
         st.title("🧠 CC Pipeline")
-        st.caption("Claude-Codex Multi-Agent Pipeline")
+        st.caption("KodeForge")
         st.divider()
 
         # Model status

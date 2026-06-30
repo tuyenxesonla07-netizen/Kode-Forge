@@ -3,7 +3,7 @@
 ## 安装
 
 ```bash
-git clone <repo-url> && cd claude-codex-multi-agent
+git clone <repo-url> && cd kodeforge
 pip install -e ".[dev]"
 ```
 
@@ -41,12 +41,12 @@ from agents.pipeline import generate_code
 result = generate_code("构建带认证的 REST API")
 
 # 第二层：Pipeline 类
-from agents.pipeline import ClaudeCodexMultiAgent
-agent = ClaudeCodexMultiAgent(llm_backend="anthropic")
+from agents.pipeline import KodeForge
+agent = KodeForge(llm_backend="anthropic")
 result = agent.run_phase1("构建在线商城")
 
 # 第三层：完整系统（含 HITL + Memory + Observability）
-agent = ClaudeCodexMultiAgent(
+agent = KodeForge(
     llm_backend="anthropic",
     enable_guardrails=True,
     enable_memory=True,

@@ -143,7 +143,7 @@ class TestHealthCheck:
     def test_health_returns_service_name(self, client_with_auth):
         response = client_with_auth.get("/api/v1/health", headers=AUTH_HEADERS)
         data = response.json()
-        assert data["service"] == "claude-codex-multi-agent"
+        assert data["service"] == "kodeforge"
 
     def test_health_degraded_when_overloaded(self, client_with_auth):
         """When >10 active pipelines, status should be 'degraded'."""

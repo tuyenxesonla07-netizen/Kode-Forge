@@ -149,7 +149,7 @@ graph LR
 # config/pipeline.yaml
 
 pipeline:
-  name: "claude-codex-multi-agent"
+  name: "kodeforge"
   version: "1.0.0"
 
   phases:

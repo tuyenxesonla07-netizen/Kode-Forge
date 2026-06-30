@@ -228,9 +228,9 @@ class TestPipelinePersistence:
 
     def test_pipeline_persists_specs(self, tmp_db_path):
         """Pipeline 运行后 specs 写入 DB"""
-        from __init__ import ClaudeCodexMultiAgent
+        from __init__ import KodeForge
 
-        pipeline = ClaudeCodexMultiAgent(llm_backend="mock", enable_hitl=False, enable_observability=False)
+        pipeline = KodeForge(llm_backend="mock", enable_hitl=False, enable_observability=False)
         # 替换为临时 DB
         pipeline._store_db.close()
         pipeline._store_db = StoreDatabase(db_path=tmp_db_path)
@@ -249,10 +249,10 @@ class TestPipelinePersistence:
 
     def test_pipeline_survives_restart(self, tmp_db_path):
         """Pipeline 重启后 specs 可从 DB 恢复"""
-        from __init__ import ClaudeCodexMultiAgent
+        from __init__ import KodeForge
 
         # 第一次运行
-        pipeline1 = ClaudeCodexMultiAgent(llm_backend="mock", enable_hitl=False, enable_observability=False)
+        pipeline1 = KodeForge(llm_backend="mock", enable_hitl=False, enable_observability=False)
         pipeline1._store_db.close()
         pipeline1._store_db = StoreDatabase(db_path=tmp_db_path)
         pipeline1.spec_store = SpecStore(db=pipeline1._store_db)
@@ -264,7 +264,7 @@ class TestPipelinePersistence:
         pipeline1._store_db.close()
 
         # 第二次运行（新实例，共享 DB）
-        pipeline2 = ClaudeCodexMultiAgent(llm_backend="mock", enable_hitl=False, enable_observability=False)
+        pipeline2 = KodeForge(llm_backend="mock", enable_hitl=False, enable_observability=False)
         pipeline2._store_db.close()
         pipeline2._store_db = StoreDatabase(db_path=tmp_db_path)
         pipeline2.spec_store = SpecStore(db=pipeline2._store_db)

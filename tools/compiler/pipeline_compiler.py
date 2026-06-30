@@ -22,7 +22,7 @@ from tools.compiler.quality_gate_gen import QualityGateGenerator, QualityGateSui
 @dataclass
 class PipelineConfig:
     """pipeline.yaml 加载结果"""
-    name: str = "claude-codex-multi-agent"
+    name: str = "kodeforge"
     version: str = "1.0.0"
     quality_gates: List[Dict[str, Any]] = field(default_factory=list)
     timeouts: Dict[str, Any] = field(default_factory=dict)

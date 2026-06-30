@@ -16,8 +16,7 @@ docker run -d \
   -e ANTHROPIC_API_KEY="sk-..." \
   -e OPENAI_API_KEY="sk-..." \
   -v cc-data:/app/data \
-  cc-pipeline
-```
+  cc-pipeline```
 
 ### Docker Compose
 
@@ -65,7 +64,7 @@ docker compose up -d
 
 ```bash
 # 1. 克隆仓库
-git clone <repo-url> && cd claude-codex-multi-agent
+git clone <repo-url> && cd kodeforge
 
 # 2. 创建虚拟环境
 python -m venv .venv

@@ -190,7 +190,7 @@ def create_app(
     openapi_url = "/openapi.json" if not config.protect_docs else None
 
     app = FastAPI(
-        title="Claude-Codex Multi-Agent Pipeline API",
+        title="KodeForge API",
         description="Schema-first multi-agent code generation pipeline with RAG dual-engine",
         version="1.0.0",
         docs_url=docs_url,
@@ -288,7 +288,7 @@ def create_app(
 
         return {
             "status": status,
-            "service": "claude-codex-multi-agent",
+            "service": "kodeforge",
             "version": "1.0.0",
             "active_pipelines": active_count,
             "engine_running": engine_running,
@@ -543,7 +543,7 @@ def main():
 
     print(f"""
 ╔══════════════════════════════════════════════════╗
-║  Claude-Codex Multi-Agent Pipeline API Server    ║
+║  KodeForge API Server                            ║
 ╠══════════════════════════════════════════════════╣
 ║  URL:  http://{args.host}:{args.port}              ║
 ║  Docs: http://{args.host}:{args.port}/docs         ║

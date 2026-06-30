@@ -31,7 +31,7 @@ from agents.supervisor.phase1 import _module_to_file_path
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
-    from agents.pipeline import ClaudeCodexMultiAgent
+    from agents.pipeline import KodeForge
 
 # Re-export types for backward compatibility
 __all__ = [

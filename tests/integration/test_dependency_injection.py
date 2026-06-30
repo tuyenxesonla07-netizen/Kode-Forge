@@ -27,7 +27,7 @@ class TestDependencyInjection:
     def test_dependency_from_processed_specs(self):
         """依赖接口应从 processed_specs 中提取"""
         from agents.experts import ExpertOutput
-        from agents.pipeline import ClaudeCodexMultiAgent
+        from agents.pipeline import KodeForge
         from unittest.mock import MagicMock
 
         pipeline = self._make_minimal_pipeline()
@@ -51,7 +51,7 @@ class TestDependencyInjection:
         input_schema = {"description": "数据处理模块"}
 
         # 调用 _build_expert_input，传入已处理的 auth spec
-        expert_input = ClaudeCodexMultiAgent._build_expert_input(
+        expert_input = KodeForge._build_expert_input(
             pipeline,
             module_name="data_processing",
             input_schema=input_schema,
@@ -70,7 +70,7 @@ class TestDependencyInjection:
 
     def test_no_strategy_no_injection(self):
         """strategy 不声明需要依赖时不注入"""
-        from agents.pipeline import ClaudeCodexMultiAgent
+        from agents.pipeline import KodeForge
         from unittest.mock import MagicMock
 
         pipeline = self._make_minimal_pipeline()
@@ -79,7 +79,7 @@ class TestDependencyInjection:
         strategy.needs_dependency_interfaces = False
         strategy.depends_on = []
 
-        expert_input = ClaudeCodexMultiAgent._build_expert_input(
+        expert_input = KodeForge._build_expert_input(
             pipeline,
             module_name="data_processing",
             input_schema={"description": "test"},
@@ -91,7 +91,7 @@ class TestDependencyInjection:
 
     def test_fallback_to_interface_store(self):
         """processed_specs 中没有时，回退到 interface_store"""
-        from agents.pipeline import ClaudeCodexMultiAgent
+        from agents.pipeline import KodeForge
         from unittest.mock import MagicMock
 
         pipeline = MagicMock()
@@ -106,7 +106,7 @@ class TestDependencyInjection:
 
         # processed_specs 为空，应回退到 store
         import json
-        expert_input = ClaudeCodexMultiAgent._build_expert_input(
+        expert_input = KodeForge._build_expert_input(
             pipeline,
             module_name="data_processing",
             input_schema={"description": "test"},
@@ -118,7 +118,7 @@ class TestDependencyInjection:
 
     def test_empty_processed_specs_no_error(self):
         """processed_specs 为空 dict 时不报错"""
-        from agents.pipeline import ClaudeCodexMultiAgent
+        from agents.pipeline import KodeForge
         from unittest.mock import MagicMock
 
         pipeline = MagicMock()
@@ -129,7 +129,7 @@ class TestDependencyInjection:
         strategy.needs_dependency_interfaces = True
         strategy.depends_on = ["auth"]
 
-        expert_input = ClaudeCodexMultiAgent._build_expert_input(
+        expert_input = KodeForge._build_expert_input(
             pipeline,
             module_name="test_module",
             input_schema={},
@@ -146,9 +146,9 @@ class TestDependencyInjectionEndToEnd:
 
     def test_phase1_dependency_interfaces_injected(self):
         """Phase1 中 data_processing 应收到 auth 的接口"""
-        from agents.pipeline import ClaudeCodexMultiAgent
+        from agents.pipeline import KodeForge
 
-        system = ClaudeCodexMultiAgent(
+        system = KodeForge(
             llm_backend="mock",
             enable_guardrails=False,
             enable_memory=False,
@@ -164,9 +164,9 @@ class TestDependencyInjectionEndToEnd:
 
     def test_three_module_pipeline(self):
         """三模块流水线完整运行"""
-        from agents.pipeline import ClaudeCodexMultiAgent
+        from agents.pipeline import KodeForge
 
-        system = ClaudeCodexMultiAgent(
+        system = KodeForge(
             llm_backend="mock",
             enable_guardrails=True,
             enable_memory=True,

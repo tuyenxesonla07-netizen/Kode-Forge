@@ -726,7 +726,7 @@ def build_parser() -> argparse.ArgumentParser:
     """构建 CLI 参数解析器。"""
     parser = argparse.ArgumentParser(
         prog="cc",
-        description="CC — Claude-Codex Multi-Agent Pipeline CLI",
+        description="KodeForge CLI",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:

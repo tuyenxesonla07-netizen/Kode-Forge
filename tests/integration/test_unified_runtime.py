@@ -93,7 +93,7 @@ def test_pipeline_and_rag_endpoints_coexist():
     resp = client.get("/api/v1/health")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["service"] == "claude-codex-multi-agent"
+    assert data["service"] == "kodeforge"
 
     # RAG health 端点
     resp = client.get("/api/v1/rag/health")

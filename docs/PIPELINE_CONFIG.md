@@ -7,7 +7,7 @@
 ```yaml
 # config/pipeline.yaml
 
-name: "claude-codex-multi-agent"
+name: "kodeforge"
 version: "1.0.0"
 
 # 质量门禁 — Phase 2 审查时评估
