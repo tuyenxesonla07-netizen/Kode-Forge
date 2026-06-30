@@ -6,7 +6,8 @@
 支持 DAG 执行、并行分支、条件路由、人工审批节点。
 
 tools/workflow/
-├── engine.py    — 工作流执行引擎（核心 + 上下文 + 生命周期）
+├── engine.py    — 工作流执行引擎（核心执行逻辑）
+├── context.py   — 上下文窗口 + 生命周期钩子
 ├── execution.py — 执行策略（恢复、质量循环、熔断器、结果汇总）
 ├── messaging.py — 消息总线（Topic、Message、MessageBus）
 └── nodes.py     — 节点类型定义
@@ -21,6 +22,7 @@ tools/workflow/
 """
 
 from tools.workflow.engine import WorkflowEngine, Workflow, WorkflowNode, WorkflowResult
+from tools.workflow.context import ContextWindow, ContextItem, LifecycleHooks, LifecycleEvent
 from tools.workflow.execution import (
     RecoveryManager, RetryPolicy, RecoveryResult,
     QualityLoop, QualityLoopResult,
@@ -126,6 +128,8 @@ def build_pipeline_workflow(compiled_pipeline, llm_provider=None,
 __all__ = [
     # Core engine
     "WorkflowEngine", "Workflow", "WorkflowNode", "WorkflowResult",
+    # Context & lifecycle
+    "ContextWindow", "ContextItem", "LifecycleHooks", "LifecycleEvent",
     # Nodes
     "LLMNode", "RAGNode", "ToolNode", "CodeNode", "BranchNode",
     # Execution strategies

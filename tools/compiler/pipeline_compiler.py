@@ -209,6 +209,38 @@ class CompiledPipeline:
 
         return "\n".join(lines)
 
+    def to_langgraph(
+        self,
+        llm_provider: Any = None,
+        tool_registry: Any = None,
+        **kwargs: Any,
+    ) -> Any:
+        """将 CompiledPipeline 编译为 LangGraph CompiledStateGraph。
+
+        需要: pip install langgraph
+
+        Args:
+            llm_provider: LLM provider 实例
+            tool_registry: PluginToolRegistry 实例
+            **kwargs: 传递给 LangGraphBackend 的额外参数
+
+        Returns:
+            LangGraph CompiledStateGraph 实例
+
+        Raises:
+            ImportError: 如果 langgraph 未安装
+        """
+        from tools.workflow import build_pipeline_workflow
+        from tools.langgraph_adapter.graph_builder import LangGraphBackend
+
+        workflow = build_pipeline_workflow(
+            self,
+            llm_provider=llm_provider,
+            tool_registry=tool_registry,
+        )
+        backend = LangGraphBackend(**kwargs)
+        return backend.build(workflow)
+
 
 class PipelineCompiler:
     """核心编译器入口"""

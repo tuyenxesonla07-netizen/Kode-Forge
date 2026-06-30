@@ -13,6 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from agents.pipeline_phase1 import Phase1Pipeline
@@ -65,7 +66,7 @@ class ClaudeCodexMultiAgent(Phase1Pipeline, Phase2Pipeline):
         from tools.memory import Memory, SessionState
         from tools.hitl import AutoApprovalHandler, ManualApprovalHandler, AuditLog
         from tools.observability import Tracer, PipelineMetrics
-        from tools.skills import SkillSelector, SkillLoader
+        from tools.plugins import PluginSkillRegistry
         from tools.workflow import WorkflowEngine
         from agents.supervisor.agent_executor import write_code_artifacts, CodeWriterConfig
         from agents.experts import create_expert_agents
@@ -150,8 +151,11 @@ class ClaudeCodexMultiAgent(Phase1Pipeline, Phase2Pipeline):
             self.tracer = Tracer("claude_codex_pipeline")
             self.metrics = PipelineMetrics()
 
-        # ── Skills ──
-        self.skill_manager = SkillSelector(SkillLoader("tools/skills/builtin"))
+        # ── Skills (Plugin-based) ──
+        from tools.plugins import PluginSkillRegistry
+
+        self.skill_manager = PluginSkillRegistry(plugins_dir=Path("plugins"))
+        self.skill_manager.load()
 
         # ── Agents ──
         from agents.supervisor import CodexSupervisor, Requirement
@@ -180,7 +184,56 @@ class ClaudeCodexMultiAgent(Phase1Pipeline, Phase2Pipeline):
         )
 
     def run_full_pipeline(self, user_requirement):
-        """Run Phase 1 + Phase 2 as a single end-to-end pipeline."""
+        """Run Phase 1 + Phase 2 as a single end-to-end pipeline.
+
+        V0.5.0: 保留旧 Phase1+Phase2 路径（完整功能：编译/代码生成/质量审查/文件写入）。
+        AgentOrchestrator 路径通过 generate_code() 的新选项或 AgentConversationManager 使用。
+        """
+        # Guardrails 注入检测
+        if self.enable_guardrails and hasattr(self, 'input_guard') and self.input_guard is not None:
+            guard_result = self.input_guard.check(user_requirement)
+            if not guard_result.passed:
+                return {"status": "blocked", "reason": guard_result.reason or "Security violation detected"}
+
+        return self._run_legacy_pipeline(user_requirement)
+
+    def run_full_pipeline_v2(self, user_requirement, conversation_id: str = "") -> dict:
+        """V0.5.0 新路径：通过 AgentOrchestrator 执行。
+
+        适用于对话式交互场景。返回格式与 run_full_pipeline 兼容。
+        """
+        from agents.runtime.orchestrator import AgentOrchestrator, AgentOrchestratorConfig
+        from agents.runtime.state import StopReason
+
+        # Guardrails 注入检测
+        if self.enable_guardrails and hasattr(self, 'input_guard') and self.input_guard is not None:
+            guard_result = self.input_guard.check(user_requirement)
+            if not guard_result.passed:
+                return {"status": "blocked", "reason": guard_result.reason or "Security violation detected"}
+
+        config = AgentOrchestratorConfig(
+            max_steps=10,
+            llm_provider=self.llm_provider,
+            skill_registry=self.skill_manager,
+        )
+        orchestrator = AgentOrchestrator(config=config)
+        state = orchestrator.run_agent_sync(user_requirement, conversation_id=conversation_id)
+
+        return {
+            "status": "success" if state.stop_reason == StopReason.ANSWERED else state.stop_reason,
+            "intent": state.intent,
+            "reply": state.reply,
+            "trace": state.trace,
+            "history": [{"role": m.role, "content": m.content} for m in state.history],
+            "tool_history_count": len(state.tool_history),
+            "step_count": state.step_count,
+            "phase1": {"intent": state.intent, "reply": state.reply},
+            "phase2": {"passed": state.stop_reason == StopReason.ANSWERED},
+            "written_files": [],
+        }
+
+    def _run_legacy_pipeline(self, user_requirement):
+        """旧 Phase1+Phase2 路径（保留为 fallback）。"""
         root_span = self.tracer.span("full_pipeline") if self.enable_observability else None
 
         try:
@@ -236,16 +289,6 @@ class ClaudeCodexMultiAgent(Phase1Pipeline, Phase2Pipeline):
             if result and result.status != "running":
                 return run_id
             await asyncio.sleep(0.01)
-
-    def get_mcp_server(self, host="localhost", port=9000):
-        """Create and return an MCP server instance exposing pipeline tools."""
-        from tools.mcp import ToolRegistry, MCPServer
-        from tools.mcp.builtin_tools import register_builtin_tools
-
-        registry = ToolRegistry()
-        register_builtin_tools(registry)
-        server = MCPServer(registry, host=host, port=port)
-        return server
 
     def run_eval(self, cases=None, verbose=True):
         """Run behavioral evaluation suite."""

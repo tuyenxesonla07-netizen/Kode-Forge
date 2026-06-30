@@ -70,9 +70,10 @@ def _get_feedback_store():
 
 def _get_skill_manager():
     if st.session_state.skill_manager is None:
-        from tools.skills import SkillSelector, SkillLoader
-        loader = SkillLoader("tools/skills/builtin")
-        st.session_state.skill_manager = SkillSelector(loader)
+        from pathlib import Path
+        from tools.plugins import PluginSkillRegistry
+        st.session_state.skill_manager = PluginSkillRegistry(plugins_dir=Path("plugins"))
+        st.session_state.skill_manager.load()
     return st.session_state.skill_manager
 
 

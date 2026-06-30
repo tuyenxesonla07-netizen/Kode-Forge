@@ -35,6 +35,7 @@ import argparse
 import asyncio
 import json
 import logging
+import time
 from dataclasses import dataclass, field
 from typing import List, Optional
 
@@ -316,7 +317,8 @@ def create_app(
         请求体:
             {
                 "requirement": "构建用户登录模块",
-                "context": {}  // 可选
+                "context": {},  // 可选
+                "backend": "workflow"  // 可选: "workflow" | "langgraph"
             }
         """
         requirement = body.get("requirement", "").strip()
@@ -324,9 +326,10 @@ def create_app(
             raise HTTPException(status_code=400, detail="Missing 'requirement' field")
 
         context = body.get("context", {})
+        backend = body.get("backend", "workflow")
 
         try:
-            result = await orchestrator.run_pipeline(requirement)
+            result = await orchestrator.run_pipeline(requirement, backend=backend)
             return JSONResponse(content=result)
         except Exception as e:
             logger.error("[API] Pipeline execution failed: %s", e, exc_info=True)
@@ -438,6 +441,90 @@ def create_app(
         if not run:
             raise HTTPException(status_code=404, detail=f"Session not found: {run_id}")
         return run
+
+    # ─── Webhook 入口 (V0.4.0 F4: OpenClaw 多渠道) ────────
+
+    try:
+        from tools.server.webhook_ingress import create_webhook_router
+        webhook_router = create_webhook_router()
+        if webhook_router:
+            app.include_router(webhook_router)
+            logger.info("[Server] Webhook router mounted at /api/v1/webhook")
+    except Exception as e:
+        logger.debug("[Server] Webhook router not available: %s", e)
+
+    # ─── RAG 子路由器 (V0.5.0: 统一 HTTP 服务器) ────────────
+
+    if rag_engine:
+        try:
+            from tools.rag.api import create_rag_router
+            rag_router = create_rag_router(pipeline=rag_engine)
+            if rag_router:
+                app.include_router(rag_router)
+                logger.info("[Server] RAG router mounted at /api/v1/rag")
+        except Exception as e:
+            logger.debug("[Server] RAG router not available: %s", e)
+
+    # ─── Agent 对话 API (V0.5.0: 统一运行时) ──────────────
+
+    from tools.server.agent_conversation import AgentConversationManager
+
+    conversation_mgr = AgentConversationManager()
+
+    @app.post("/api/v1/agents/conversations")
+    async def create_conversation():
+        """创建新对话，返回 conversation_id。"""
+        cid = conversation_mgr.create()
+        return {"conversation_id": cid, "created_at": time.time()}
+
+    @app.get("/api/v1/agents/conversations")
+    async def list_conversations_api():
+        """列出所有活跃对话摘要。"""
+        return {"conversations": conversation_mgr.list_conversations()}
+
+    @app.get("/api/v1/agents/conversations/{conversation_id}")
+    async def get_conversation(conversation_id: str):
+        """获取对话状态和历史。"""
+        state = conversation_mgr.get(conversation_id)
+        if not state:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        return {
+            "conversation_id": conversation_id,
+            "intent": state.intent,
+            "reply": state.reply,
+            "history": [{"role": m.role, "content": m.content} for m in state.history],
+            "step_count": state.step_count,
+            "stop_reason": str(state.stop_reason),
+        }
+
+    @app.delete("/api/v1/agents/conversations/{conversation_id}")
+    async def delete_conversation(conversation_id: str):
+        """删除对话。"""
+        deleted = conversation_mgr.delete(conversation_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        return {"status": "deleted", "conversation_id": conversation_id}
+
+    @app.post("/api/v1/agents/conversations/{conversation_id}/messages")
+    async def send_message(conversation_id: str, body: dict = Body(...)):
+        """发送消息到对话，返回 SSE 流式响应。"""
+        message = body.get("message", "").strip()
+        if not message:
+            raise HTTPException(status_code=400, detail="Missing 'message' field")
+
+        async def event_stream():
+            async for event in conversation_mgr.send_message(conversation_id, message):
+                yield event
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Connection": "keep-alive",
+            },
+        )
 
     return app
 

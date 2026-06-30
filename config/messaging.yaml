@@ -1,0 +1,59 @@
+# config/messaging.yaml
+# OpenClaw 多渠道消息配置示例
+# 实际使用时请填入真实 token/URL
+
+channels:
+  # Slack 配置
+  slack:
+    token: "xoxb-your-slack-bot-token"
+    channel_id: "C0123456789"
+
+  # Telegram 配置
+  telegram:
+    token: "123456:ABC-DEF..."
+    chat_id: "-1001234567890"
+
+  # Discord 配置
+  discord:
+    token: "your-discord-bot-token"
+    channel_id: "123456789012345678"
+
+  # Email 配置
+  email:
+    smtp_host: "smtp.gmail.com"
+    smtp_port: 587
+    username: "your-email@gmail.com"
+    password: "your-app-password"
+    from_addr: "your-email@gmail.com"
+    use_tls: true
+
+  # Webhook 配置
+  webhook:
+    url: "https://your-webhook-endpoint.example.com/events"
+    headers:
+      Content-Type: "application/json"
+      X-Custom-Header: "value"
+    timeout: 30
+
+  # SSE 配置（零依赖）
+  sse:
+    max_queue_size: 1000
+
+# 路由规则
+# 格式: topic_pattern: [channel_name, ...]
+# topic_pattern 支持 fnmatch 通配符: * 匹配任意字符
+routing:
+  # 结果相关 → Slack + Webhook
+  "results.*": ["slack", "webhook"]
+
+  # 流水线事件 → SSE（实时推送 GUI）
+  "events.pipeline": ["sse"]
+
+  # 审批升级事件 → Slack + Email（高优先级通知）
+  "escalation.*": ["slack", "email"]
+
+  # 审批结果 → SSE
+  "events.approval": ["sse"]
+
+  # Webhook 入口事件 → SSE
+  "webhook.*": ["sse"]

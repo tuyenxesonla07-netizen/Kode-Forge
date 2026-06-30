@@ -1,0 +1,25 @@
+{
+    "name": "ast_validator",
+    "namespace": "code_quality",
+    "description": "Validate Python AST for syntax errors",
+    "version": "1.0.0",
+    "risk_level": "low",
+    "requires_auth": false,
+    "requires_approval": false,
+    "idempotent": true,
+    "handler": "tests.plugins.fixtures.tools.ast_validator.handler:validate_ast",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "code": {"type": "string"}
+        },
+        "required": ["code"]
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "valid": {"type": "boolean"},
+            "errors": {"type": "array"}
+        }
+    }
+}

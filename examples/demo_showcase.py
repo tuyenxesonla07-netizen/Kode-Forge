@@ -98,16 +98,18 @@ def run_demo(schema_detail: bool = False, security_detail: bool = False) -> dict
     # ── Step 2: Expert Agent Analysis ──────────────────────────────
     print_step(2, "Parallel Expert Agent Analysis")
 
+    from pathlib import Path
     from tools.llm import create_llm_provider
-    from tools.skills import SkillSelector, SkillLoader
+    from tools.plugins import PluginSkillRegistry
     from agents.experts import create_expert_agents, ExpertInput
 
     llm = create_llm_provider("mock")
-    skills = SkillSelector(SkillLoader("tools/skills/builtin"))
+    skill_registry = PluginSkillRegistry(plugins_dir=Path("plugins"))
+    skill_registry.load()
     experts = create_expert_agents(
         schemas_dir="config/schemas",
         llm_provider=llm,
-        skill_manager=skills,
+        skill_manager=skill_registry,
     )
     print_substep("Experts created", [f"{k} ({v.__class__.__name__})" for k, v in experts.items()])
 

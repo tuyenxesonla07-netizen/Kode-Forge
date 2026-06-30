@@ -234,14 +234,22 @@ def _cmd_run(args: argparse.Namespace) -> None:
       3. 每个 ExpertAgent 分析模块需求 (含 Skill 注入)
       4. QualityEvaluator 评估 + ConvergenceDetector 修复循环
       5. 输出 module_specs + quality report
+
+    支持 --backend workflow|langgraph 选择执行引擎。
     """
+    backend = getattr(args, "backend", "workflow")
+
+    if backend == "langgraph":
+        _cmd_run_langgraph(args)
+        return
+
     print(f"\n  CC Pipeline — Executing: {args.requirement}")
     print("  " + "=" * 50)
 
     # ── 初始化组件 ──────────────────────────────────────────────
     from tools.llm.model_switcher import ModelSwitcher, ModelRegistry
     from tools.compiler import PipelineCompiler, PipelineConfig
-    from tools.skills import SkillSelector, SkillLoader
+    from tools.plugins import PluginSkillRegistry
     from tools.quality import QualityEvaluator
     from agents.experts import create_expert_agents, ExpertInput
     from agents.supervisor import CodexSupervisor, Requirement
@@ -270,8 +278,9 @@ def _cmd_run(args: argparse.Namespace) -> None:
     print("\n  [Phase 2] Expert Analysis × N...")
 
     # Skill 加载
-    skill_loader = SkillLoader("tools/skills/builtin")
-    skill_manager = SkillSelector(skill_loader)
+    from pathlib import Path
+    skill_registry = PluginSkillRegistry(plugins_dir=Path("plugins"))
+    skill_registry.load()
 
     # LLM Provider
     from tools.llm import create_llm_provider
@@ -281,7 +290,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
     experts = create_expert_agents(
         schemas_dir="config/schemas",
         llm_provider=llm_provider,
-        skill_manager=skill_manager,
+        skill_manager=skill_registry,
     )
     print(f"    Experts: {len(experts)} agents")
 
@@ -329,7 +338,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
             continue
 
         # Skill 匹配
-        matched = skill_manager.select_for(args.requirement, module_type=module_name)
+        matched = skill_registry.get_by_intent(args.requirement)
 
         expert_input = ExpertInput(
             module_name=module_name,
@@ -394,6 +403,101 @@ def _cmd_run(args: argparse.Namespace) -> None:
 
     print("\n  [OK] Pipeline complete")
     print("  Note: Code generation requires real LLM API key")
+
+
+def _cmd_run_langgraph(args: argparse.Namespace) -> None:
+    """使用 LangGraph 后端执行 Pipeline。"""
+    print(f"\n  CC Pipeline (LangGraph) — Executing: {args.requirement}")
+    print("  " + "=" * 50)
+
+    try:
+        from tools.langgraph_adapter import LangGraphBackend
+    except ImportError:
+        print("  ✗ langgraph not installed. Install with: pip install langgraph")
+        return
+
+    # 初始化 LLM
+    from tools.llm.model_switcher import ModelSwitcher, ModelRegistry
+    registry = ModelRegistry()
+    switcher = ModelSwitcher(registry)
+    provider_name, model = switcher.auto_select()
+    print(f"\n  LLM: {provider_name}/{model}")
+
+    from tools.llm import create_llm_provider
+    llm_provider = create_llm_provider(provider_name)
+
+    # 编译 Pipeline
+    from tools.compiler import PipelineCompiler, PipelineConfig
+    compiler = PipelineCompiler()
+    pipeline_cfg = PipelineConfig.load("config/pipeline.yaml")
+
+    print("\n  [Phase 1] Compiling pipeline...")
+    compiled = compiler.compile_from_config("config")
+    print(f"    Modules: {len(getattr(compiled, 'module_schemas', {}))}")
+    print(f"    Order: {' → '.join(compiled.implementation_order)}")
+
+    # 构建 LangGraph 工作流
+    from tools.workflow.engine import Workflow
+    from tools.workflow.nodes import WorkflowNode, NodeType
+
+    nodes = {}
+    edges = {}
+    for i, module_name in enumerate(compiled.implementation_order):
+        node_id = f"module_{module_name}"
+        nodes[node_id] = WorkflowNode(
+            id=node_id,
+            type=NodeType.LLM,
+            name=f"Generate {module_name}",
+            config={"prompt_template": f"Generate implementation for {module_name} module"},
+            inputs=[f"module_{compiled.implementation_order[i-1]}"] if i > 0 else [],
+        )
+        if i > 0:
+            prev_id = f"module_{compiled.implementation_order[i-1]}"
+            edges[prev_id] = [node_id]
+
+    if compiled.implementation_order:
+        last_id = f"module_{compiled.implementation_order[-1]}"
+        edges[last_id] = []
+
+    workflow = Workflow(
+        id="langgraph_pipeline",
+        name=args.requirement[:50],
+        nodes=nodes,
+        edges=edges,
+    )
+
+    # 编译为 LangGraph
+    backend = LangGraphBackend(llm_provider=llm_provider)
+    print("\n  [Phase 2] Building LangGraph StateGraph...")
+    graph = backend.build(workflow)
+    print("    Graph compiled successfully")
+
+    # 执行
+    print("\n  [Phase 3] Executing graph...")
+    import asyncio
+
+    async def run_graph():
+        state = {"query": args.requirement, "current_phase": 1}
+        return await backend.execute(graph, state)
+
+    result = asyncio.run(run_graph())
+
+    # 输出结果
+    print("\n" + "=" * 50)
+    print("  LangGraph Pipeline Summary")
+    print("=" * 50)
+    print(f"  Phase: {result.get('current_phase', '?')}")
+    print(f"  Node outputs: {len(result.get('node_outputs', {}))}")
+    print(f"  Errors: {len(result.get('errors', []))}")
+    if result.get('errors'):
+        for err in result['errors'][:3]:
+            print(f"    ⚠ {err}")
+    if result.get('node_outputs'):
+        for node_id, output in result['node_outputs'].items():
+            preview = str(output)[:80]
+            print(f"    ✓ {node_id}: {preview}")
+    print(f"\n  Status: {'PASS' if not result.get('errors') else 'NEEDS FIX'}")
+    print("\n  [OK] LangGraph pipeline complete")
 
 
 def _cmd_feedback(args: argparse.Namespace) -> None:
@@ -477,76 +581,68 @@ def _cmd_train(args: argparse.Namespace) -> None:
 
 
 def _cmd_skills(args: argparse.Namespace) -> None:
-    """Skills 管理 (list / search / publish / unpublish)。"""
-    from tools.skills import SkillRegistry
+    """Skills 管理 (list / search)。"""
+    from pathlib import Path
+    from tools.plugins import PluginSkillRegistry
 
-    registry = SkillRegistry()
+    registry = PluginSkillRegistry(plugins_dir=Path("plugins"))
     action = getattr(args, "skills_action", "list")
 
     if action == "list":
-        entries = registry.discover()
-        print(f"\n  CC Skills Registry ({len(entries)} skills)")
+        registry.load()
+        skills = registry.list()
+        print(f"\n  CC Skills Registry ({len(skills)} skills)")
         print(f"  {'=' * 50}")
-        for meta in entries:
-            triggers = ", ".join(meta.triggers[:4])
-            print(f"\n  [{meta.name}] v{meta.version}")
-            print(f"      {meta.description}")
-            print(f"      Triggers: {triggers}")
-            print(f"      Author: {meta.author}")
+        for s in skills:
+            intents = ", ".join(s.get("intents", [])[:4])
+            print(f"\n  [{s['name']}] v{s['version']}")
+            print(f"      {s.get('display_name', '')}")
+            print(f"      Intents: {intents}")
+            print(f"      Risk: {s.get('risk_level', 'unknown')}")
         print(f"\n  {'=' * 50}")
 
     elif action == "search":
+        registry.load()
         query = args.query or ""
-        results = registry.search(query)
+        profile = __import__("tools.rag.search.query_profile", fromlist=["QueryProfiler"]).QueryProfiler()
+        # 简单搜索：列出所有已加载的 skill
+        results = registry.list()
         print(f"\n  Search: '{query}' ({len(results)} results)")
-        for meta in results:
-            print(f"    - {meta.name}: {meta.description}")
-
-    elif action == "publish":
-        path = args.path
-        overwrite = getattr(args, "overwrite", False)
-        try:
-            meta = registry.publish(path, overwrite=overwrite)
-            print(f"  [OK] Published skill: {meta.name} v{meta.version}")
-            print(f"      {meta.description}")
-            print(f"      Path: {registry.skills_dir / meta.name}")
-        except FileNotFoundError as e:
-            print(f"  [ERROR] {e}")
-        except ValueError as e:
-            print(f"  [ERROR] {e}")
-
-    elif action == "unpublish":
-        name = args.name
-        if registry.unpublish(name):
-            print(f"  [OK] Unpublished skill: {name}")
-        else:
-            print(f"  [ERROR] Skill not found: {name}")
+        for s in results:
+            print(f"    - {s['name']}: {s.get('display_name', '')}")
 
     else:
         print(f"  Unknown action: {action}")
 
 
 def _cmd_serve(args: argparse.Namespace) -> None:
-    """启动 API 服务。"""
-    from tools.rag import RAGPipeline, RAGConfig, RAGObserver
-    from tools.rag.api import RAGServer
+    """启动统一 API 服务 (Pipeline + RAG)。"""
+    from tools.server.app import create_app, ServerConfig
+    from tools.rag import RAGPipeline, RAGConfig
 
-    config = RAGConfig()
-    pipeline = RAGPipeline(config)
-    _load_sample_docs(pipeline)
-    observer = RAGObserver()
+    config = ServerConfig(
+        host=getattr(args, "host", "0.0.0.0"),
+        port=getattr(args, "port", 8080),
+    )
 
-    server = RAGServer(pipeline, observer)
-    port = getattr(args, "port", 8080)
-    host = getattr(args, "host", "0.0.0.0")
+    # 初始化 RAG pipeline
+    rag_config = RAGConfig()
+    rag_pipeline = RAGPipeline(rag_config)
+    _load_sample_docs(rag_pipeline)
 
-    print(f"\n  CC API Server")
+    app = create_app(rag_engine=rag_pipeline, config=config)
+
+    import uvicorn
+
+    print(f"\n  CC Unified API Server (V0.5.0)")
     print(f"  ─────────────────────────────")
-    print(f"  http://{host}:{port}")
-    print(f"  Docs: http://{host}:{port}/docs")
+    print(f"  http://{config.host}:{config.port}")
+    print(f"  Docs: http://{config.host}:{config.port}/docs")
+    print(f"  Pipeline API: POST /api/v1/pipeline/run")
+    print(f"  RAG API:      POST /api/v1/rag/query")
     print(f"  Press Ctrl+C to stop\n")
 
-    server.run(host=host, port=port)
+    uvicorn.run(app, host=config.host, port=config.port)
 
 
 def _cmd_gui(args: argparse.Namespace) -> None:
@@ -677,6 +773,8 @@ Examples:
     run_parser.add_argument("requirement", help="Requirement description")
     run_parser.add_argument("--strict", action="store_true",
                            help="Enable strict mode (block overpromises instead of rewriting)")
+    run_parser.add_argument("--backend", choices=["workflow", "langgraph"], default="workflow",
+                           help="Execution backend (default: workflow)")
 
     # --- serve ---
     serve_parser = subparsers.add_parser("serve", help="Start API server")

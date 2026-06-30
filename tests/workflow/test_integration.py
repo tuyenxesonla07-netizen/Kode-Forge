@@ -75,9 +75,8 @@ class TestIntegration:
         })
 
         run_id = await engine.execute_async("wf-int", {"input": "hello"})
-        await asyncio.sleep(0.2)
+        result = await engine.wait_for_run(run_id)
 
-        result = engine.get_run_result(run_id)
         assert result is not None
         assert result.status == "success"
 
@@ -118,9 +117,8 @@ class TestIntegration:
         })
 
         run_id = await engine.execute_async("wf-err", {"input": "test"})
-        await asyncio.sleep(0.2)
+        result = await engine.wait_for_run(run_id)
 
-        result = engine.get_run_result(run_id)
         assert result.status == "failed"
         error_events = [e for e in events if e[0] == "error"]
         assert len(error_events) >= 1, "on_error should fire on failure"
@@ -148,7 +146,7 @@ class TestIntegration:
         })
 
         run_id = await engine.execute_async("wf-ctx", {"input": "test"})
-        await asyncio.sleep(0.2)
+        await engine.wait_for_run(run_id)
 
         assert len(cw) >= 1
 
@@ -185,8 +183,7 @@ class TestIntegration:
             "edges": [],
         })
         run_id = await engine.execute_async("wf-basic", {"input": "test"})
-        await asyncio.sleep(0.2)
-        result = engine.get_run_result(run_id)
+        result = await engine.wait_for_run(run_id)
         assert result.status == "success"
 
     def test_engine_component_accessors(self):

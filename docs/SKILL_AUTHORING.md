@@ -5,9 +5,10 @@ Skill 是 Markdown 文件，描述专家 Agent 在特定场景下应遵循的指
 ## 目录结构
 
 ```
-tools/skills/builtin/
+plugins/skills/
 ├── api-design/
-│   └── SKILL.md
+│   └── skill.json
+```
 ├── code-review/
 │   └── SKILL.md
 ├── security-audit/
@@ -112,7 +113,7 @@ Always check for these vulnerability classes:
 **第 1 步**：创建目录和 SKILL.md
 
 ```bash
-mkdir -p tools/skills/builtin/my-custom-skill
+mkdir -p plugins/skills/my-custom-skill
 ```
 
 **第 2 步**：编写 SKILL.md
@@ -150,14 +151,14 @@ src/
 验证 Skill 被加载：
 
 ```python
-from tools.skills import SkillLoader, SkillSelector
+from pathlib import Path
+from tools.plugins import PluginSkillRegistry
 
-loader = SkillLoader("tools/skills/builtin")
-selector = SkillSelector(loader)
+registry = PluginSkillRegistry(plugins_dir=Path("plugins"))
+registry.load()
 
-skills = selector.list_skills()
+skills = registry.list()
 print([s["name"] for s in skills])
-# ['api-design', 'code-review', 'security-audit', 'testing', 'my-custom-skill']
 ```
 
 ## Skill 自学习

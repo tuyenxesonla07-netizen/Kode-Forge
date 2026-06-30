@@ -234,6 +234,8 @@ tools/data/
 # Runtime feedback / registry data
 .feedback.json
 .skill_registry.json
+data/*.jsonl
+data/memory_store.json
 
 # Checkpoint / session runtime state
 .checkpoints/

@@ -57,6 +57,11 @@ dev = [
 cc = "tools.cc_cli:main"
 ccm = "tools.cc_cli:main"
 
+[project.entry-points."cc.plugins.providers"]
+anthropic = "tools.llm.anthropic:AnthropicClaudeProvider"
+openai_compatible = "tools.llm.providers:OpenAICompatibleProvider"
+gemini = "tools.llm.providers:GeminiProvider"
+
 [tool.setuptools]
 py-modules = ["__init__"]
 
@@ -64,7 +69,7 @@ py-modules = ["__init__"]
 include = ["tools*", "agents*", "gui*"]
 
 [tool.setuptools.package-data]
-"*" = ["config/**/*.json", "config/**/*.yaml", "tools/skills/builtin/**/*.md"]
+"*" = ["config/**/*.json", "config/**/*.yaml", "plugins/skills/*/skill.json", "plugins/tools/*/tool.json"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
