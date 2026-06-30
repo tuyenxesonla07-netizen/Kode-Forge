@@ -231,6 +231,11 @@ ci-artifacts/
 test-output-*.txt
 test-results-*.xml
 
+# Version-specific planning docs (belong in PR descriptions, not source)
+docs/ROADMAP_*.md
+docs/V*.md
+COMPARISON.md
+
 # Runtime database files
 tools/data/
 *.sqlite3
