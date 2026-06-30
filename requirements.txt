@@ -21,6 +21,7 @@ anthropic>=0.25.0
 
 # RAG (core)
 numpy>=1.24.0
+jieba>=0.42.1
 
 # RAG (optional)
 # PyPDF2>=3.0.0
