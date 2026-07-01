@@ -27,7 +27,7 @@ import uuid
 from collections import OrderedDict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from tools.exceptions import (
     WorkflowExecutionError,
@@ -41,7 +41,7 @@ logger = logging.getLogger(__name__)
 # ContextWindow + ContextItem  (moved to tools/workflow/context.py)
 # ---------------------------------------------------------------------------
 
-from tools.workflow.context import ContextWindow, ContextItem, LifecycleHooks, LifecycleEvent, LifecycleHandler
+from tools.workflow.context import ContextWindow, LifecycleHooks
 
 
 # ---------------------------------------------------------------------------
@@ -52,8 +52,8 @@ from tools.workflow.nodes import (
     WorkflowNode, NodeType, LLMNode, RAGNode, ToolNode, CodeNode, BranchNode, HumanNode,
 )
 from tools.workflow.execution import (
-    RecoveryManager, RetryPolicy, RecoveryResult,
-    QualityLoop, QualityLoopResult,
+    RecoveryManager, RetryPolicy,
+    QualityLoop,
     AgentResult, ResultAggregator,
     CircuitBreaker, CircuitState, CircuitBreakerOpenError,
 )
@@ -477,8 +477,8 @@ class WorkflowEngine:
 
                 try:
                     self.save_checkpoint(result.workflow_id + "_" + result.started_at[:19])
-                except Exception:
-                    pass
+                except Exception as e:
+                    logger.warning("Failed to save checkpoint for run %s: %s", effective_run_id, e)
 
             result.status = "success"
 

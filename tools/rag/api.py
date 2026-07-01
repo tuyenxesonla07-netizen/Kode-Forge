@@ -35,9 +35,8 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any
 
-from tools.rag.rag_types import RAGConfig
 
 logger = logging.getLogger(__name__)
 
@@ -448,8 +447,8 @@ def _build_fastapi_app(
                     "type": "error",
                     "message": str(e),
                 })
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to send JSON-RPC error over WebSocket: %s", e)
 
     # OpenAPI 文档
     @app.get("/docs", include_in_schema=False)
@@ -774,8 +773,8 @@ def create_rag_router(
                     "type": "error",
                     "message": str(e),
                 })
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to send JSON-RPC error over WebSocket: %s", e)
 
     return router
 

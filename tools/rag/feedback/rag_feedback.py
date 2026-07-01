@@ -14,10 +14,10 @@ Provides:
 from __future__ import annotations
 
 import json
+import logging
 import os
 import random
 import time
-from collections import defaultdict
 from dataclasses import asdict, dataclass, field
 from typing import Any, Callable, Sequence
 
@@ -25,6 +25,7 @@ import numpy as np
 
 from tools.rag.rag_types import RAGConfig, Document
 
+logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
 # FeedbackSample / FeedbackStore
@@ -562,8 +563,8 @@ class LLMPolicy:
             response = provider.complete(prompt, max_tokens=256, temperature=0.7)
             if response.success:
                 return response.content
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("LLMPolicy.generate failed for prompt: %s", e)
         return f"{prompt} [LLM response placeholder]"
 
     def update(self, log_prob: float, advantage: float) -> float:

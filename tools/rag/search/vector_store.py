@@ -34,13 +34,12 @@ Usage:
 from __future__ import annotations
 
 import logging
-import uuid
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any
 
 import numpy as np
 
-from tools.rag.rag_types import RAGConfig, Document
+from tools.rag.rag_types import Document
 
 logger = logging.getLogger(__name__)
 
@@ -601,15 +600,13 @@ class VectorStore:
         """自动选择最佳后端。"""
         # 检查 Milvus
         try:
-            import pymilvus  # noqa: F401
-
             from pymilvus import connections
 
             connections.connect("default", uri="http://localhost:19530")
             connections.disconnect("default")
             return "milvus"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Milvus backend auto-select probe failed: %s", e)
 
         # 检查 Chroma
         try:

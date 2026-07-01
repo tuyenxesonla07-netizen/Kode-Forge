@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import List
 
 
 @dataclass
@@ -46,10 +46,10 @@ class ValidationReport:
     def is_valid(self) -> bool:
         return len(self.errors) == 0
 
-    def add(self, severity: str, message: str, file: str = "", detail: str = ""):
+    def add(self, severity: str, message: str, file: str = "", detail: str = "") -> None:
         self.issues.append(ValidationIssue(severity, message, file, detail))
 
-    def merge(self, other: "ValidationReport"):
+    def merge(self, other: "ValidationReport") -> None:
         self.issues.extend(other.issues)
 
     def summary(self) -> str:

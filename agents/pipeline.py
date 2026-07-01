@@ -183,7 +183,7 @@ class KodeForge:
                 if callable(_fn) and not _name.startswith("__"):
                     setattr(self, _name, types.MethodType(_fn, self))
 
-    def compile_pipeline(self, module_schemas, input_schemas=None):
+    def compile_pipeline(self, module_schemas, input_schemas=None) -> CompiledPipeline:
         return self.compiler.compile(
             module_schemas,
             input_schemas=input_schemas,
@@ -191,7 +191,7 @@ class KodeForge:
             pipeline_config=self._pipeline_config,
         )
 
-    def run_full_pipeline(self, user_requirement):
+    def run_full_pipeline(self, user_requirement) -> dict:
         """Run Phase 1 + Phase 2 as a single end-to-end pipeline.
 
         V0.5.0: 保留旧 Phase1+Phase2 路径（完整功能：编译/代码生成/质量审查/文件写入）。
@@ -240,7 +240,7 @@ class KodeForge:
             "written_files": [],
         }
 
-    def _run_legacy_pipeline(self, user_requirement):
+    def _run_legacy_pipeline(self, user_requirement) -> dict:
         """旧 Phase1+Phase2 路径（保留为 fallback）。"""
         root_span = self.tracer.span("full_pipeline") if self.enable_observability else None
 
@@ -285,7 +285,7 @@ class KodeForge:
                 root_span["attributes"]["error"] = f"{type(e).__name__}: {e}"
             raise
 
-    async def _execute_workflow_async(self, workflow_id, input_data):
+    async def _execute_workflow_async(self, workflow_id, input_data) -> str:
         """Execute workflow asynchronously and wait for completion."""
         import asyncio
         run_id = await self.workflow_engine.execute_async(
@@ -298,7 +298,7 @@ class KodeForge:
                 return run_id
             await asyncio.sleep(0.01)
 
-    def run_eval(self, cases=None, verbose=True):
+    def run_eval(self, cases=None, verbose=True) -> EvalReport:
         """Run behavioral evaluation suite."""
         from tools.eval import EvalRunner, EVAL_CASES
 
@@ -327,7 +327,7 @@ class KodeForge:
 
     # ── Private helpers ──────────────────────────────────────────────────────
 
-    def _load_agents_config(self, config_dir):
+    def _load_agents_config(self, config_dir) -> dict:
         try:
             import yaml
         except ImportError:
@@ -351,7 +351,7 @@ class KodeForge:
                 return yaml.safe_load("\n".join(yaml_lines)) if yaml_lines else {}
         return {}
 
-    def _load_schemas(self):
+    def _load_schemas(self) -> tuple:
         schemas_dir = os.path.join(os.path.dirname(__file__), "..", "config", "schemas")
         input_schemas = {}
         output_schemas = {}
@@ -378,7 +378,7 @@ class KodeForge:
     def _module_to_short_name(cls, full_name: str) -> str:
         return cls._MODULE_NAME_MAP.get(full_name, full_name)
 
-    def _build_expert_input(self, module_name, input_schema, strategy, compiled, processed_specs=None):
+    def _build_expert_input(self, module_name, input_schema, strategy, compiled, processed_specs=None) -> ExpertInput:
         from agents.experts import ExpertInput
 
         requirement_text = input_schema.get("description", module_name)
@@ -431,8 +431,8 @@ class KodeForge:
                 conn = getattr(store_db, "connection", None) or getattr(store_db, "_connection", None)
                 if isinstance(conn, sqlite3.Connection):
                     return True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("SQLite store detection failed: %s", e)
         return False
 
 
@@ -508,7 +508,7 @@ class Pipeline:
         self._inner: Any = None
 
     @property
-    def inner(self):
+    def inner(self) -> "KodeForge":
         if self._inner is None:
             self._inner = KodeForge(
                 config_dir=self.config_dir,

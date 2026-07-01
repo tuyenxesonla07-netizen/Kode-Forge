@@ -34,13 +34,10 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import json
 import logging
 import os
 import sys
-import time
 from typing import Any
-from typing import Optional
 
 # ---------------------------------------------------------------------------
 # Logging setup
@@ -477,7 +474,7 @@ def _cmd_run_langgraph(args: argparse.Namespace) -> None:
     print("\n  [Phase 3] Executing graph...")
     import asyncio
 
-    async def run_graph():
+    async def run_graph() -> dict:
         state = {"query": args.requirement, "current_phase": 1}
         return await backend.execute(graph, state)
 

@@ -368,8 +368,8 @@ class EnterpriseApprovalHandler(ApprovalHandler):
                     "status": "approved",
                     "actor": actor,
                 })
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to publish approval event to message bus: %s", e)
 
         return result
 
@@ -508,8 +508,8 @@ class EnterpriseApprovalHandler(ApprovalHandler):
                     "reason": reason,
                     "actor": actor,
                 })
-            except Exception:
-                pass  # 消息总线失败不影响审批流程
+            except Exception as e:
+                logger.warning("Failed to publish escalation event to message bus (approval %s): %s", approval_id, e)  # 消息总线失败不影响审批流程
 
         return ApprovalResult(
             approved=False,

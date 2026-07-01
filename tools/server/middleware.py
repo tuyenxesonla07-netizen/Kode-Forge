@@ -16,7 +16,6 @@ import json
 import logging
 import re
 import uuid
-from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -312,5 +311,5 @@ class GuardrailsMiddleware:
                             "[Guardrails] Output blocked: %s",
                             "; ".join(result.issues),
                         )
-            except Exception:
-                pass  # 不因 guardrails 错误影响服务
+            except Exception as e:
+                logger.warning("Output guardrails check failed (request continues): %s", e)  # 不因 guardrails 错误影响服务

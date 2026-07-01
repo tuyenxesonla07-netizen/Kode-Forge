@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class Phase2Pipeline:
     """Phase 2 logic — attached to KodeForge via composition."""
 
-    def run_phase2(self, code_artifact, compiled_pipeline=None):
+    def run_phase2(self, code_artifact, compiled_pipeline=None) -> dict:
         """Phase 2: Code Review → Fix Loop with Convergence Detection."""
         root_span = self.tracer.span("phase2") if self.enable_observability else None
 
@@ -93,7 +93,7 @@ class Phase2Pipeline:
                 })
             raise
 
-    def _run_real_reviews(self, module_order, code_artifact):
+    def _run_real_reviews(self, module_order, code_artifact) -> list:
         """Run real LLM-based code reviews for each module.
 
         Uses ExpertAgent.review() with the actual generated code.
@@ -132,7 +132,7 @@ class Phase2Pipeline:
                 results.append(ReviewResult(module=module_name, verdict="pass"))
         return results
 
-    def _run_workflow_phase2(self, compiled, code_artifact):
+    def _run_workflow_phase2(self, compiled, code_artifact) -> dict:
         """Execute Phase 2 review+fix via WorkflowEngine DAG."""
         import asyncio
         from tools.workflow import build_pipeline_workflow
@@ -155,7 +155,7 @@ class Phase2Pipeline:
             logger.error("[WorkflowEngine] Phase 2 execution failed: %s", e)
             return {"status": "error", "error": str(e)}
 
-    def _simulate_reviews(self, module_order):
+    def _simulate_reviews(self, module_order) -> list:
         from agents.experts import ReviewInput
         from tools.quality import ReviewResult
 
@@ -172,7 +172,7 @@ class Phase2Pipeline:
                 results.append(ReviewResult(module=module_name, verdict="pass"))
         return results
 
-    def _generate_fix_instructions(self, review_results, compiled_pipeline):
+    def _generate_fix_instructions(self, review_results, compiled_pipeline) -> list:
         all_instructions = []
         for result in review_results:
             if result.verdict != "pass":
