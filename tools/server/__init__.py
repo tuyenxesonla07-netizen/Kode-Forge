@@ -15,6 +15,6 @@
 """
 
 from tools.server.app import create_app, ServerConfig
-from tools.server.orchestrator import PipelineOrchestrator, SessionManager
+from tools.server.pipeline_orchestrator import PipelineOrchestrator, SessionManager
 
 __all__ = ["create_app", "PipelineOrchestrator", "ServerConfig", "SessionManager"]

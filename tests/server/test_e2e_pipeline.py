@@ -187,14 +187,14 @@ class TestSessionManager:
 
     def test_session_manager_creation(self, tmp_path):
         """SessionManager should be created with custom dir."""
-        from tools.server.orchestrator import SessionManager
+        from tools.server.pipeline_orchestrator import SessionManager
         session_dir = str(tmp_path / "sessions")
         manager = SessionManager(session_dir=session_dir)
         assert os.path.isdir(session_dir)
 
     def test_save_and_load(self, tmp_path):
         """Should save and load run results."""
-        from tools.server.orchestrator import SessionManager
+        from tools.server.pipeline_orchestrator import SessionManager
         manager = SessionManager(session_dir=str(tmp_path / "sessions"))
 
         result = {"status": "success", "outputs": {"module_a": "code"}}
@@ -206,7 +206,7 @@ class TestSessionManager:
 
     def test_list_runs(self, tmp_path):
         """Should list saved runs."""
-        from tools.server.orchestrator import SessionManager
+        from tools.server.pipeline_orchestrator import SessionManager
         manager = SessionManager(session_dir=str(tmp_path / "sessions"))
 
         for i in range(3):
@@ -222,7 +222,7 @@ class TestOrchestratorIntegration:
     @pytest.mark.asyncio
     async def test_orchestrator_with_session(self, tmp_path):
         """Orchestrator should auto-save results when session_dir is set."""
-        from tools.server.orchestrator import PipelineOrchestrator
+        from tools.server.pipeline_orchestrator import PipelineOrchestrator
         from tools.llm.mock import MockLLMProvider
 
         provider = MockLLMProvider()
@@ -243,7 +243,7 @@ class TestOrchestratorIntegration:
     @pytest.mark.asyncio
     async def test_orchestrator_without_session(self):
         """Orchestrator should work without session manager."""
-        from tools.server.orchestrator import PipelineOrchestrator
+        from tools.server.pipeline_orchestrator import PipelineOrchestrator
         from tools.llm.mock import MockLLMProvider
 
         provider = MockLLMProvider()

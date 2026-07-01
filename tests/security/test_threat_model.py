@@ -192,7 +192,7 @@ class TestGap14_ErrorLeakage:
     """Gap 14: Error messages leak internal details."""
 
     def test_internal_error_no_stack_trace(self, client_no_auth, auth_headers, monkeypatch):
-        from tools.server.orchestrator import PipelineOrchestrator
+        from tools.server.pipeline_orchestrator import PipelineOrchestrator
         async def broken_pipeline(*args, **kwargs):
             raise RuntimeError("Connection to internal-db:5432 failed")
         monkeypatch.setattr(PipelineOrchestrator, "run_pipeline", broken_pipeline)

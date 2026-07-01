@@ -153,7 +153,7 @@ def create_app(
             "Install with: pip install fastapi uvicorn"
         )
 
-    from tools.server.orchestrator import PipelineOrchestrator
+    from tools.server.pipeline_orchestrator import PipelineOrchestrator
     from tools.server.auth import AuthMiddleware
     from tools.server.middleware import CorrelationIdMiddleware, GuardrailsMiddleware
 

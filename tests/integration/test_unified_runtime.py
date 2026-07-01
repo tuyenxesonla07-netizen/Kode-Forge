@@ -152,7 +152,7 @@ def test_langgraph_backend_if_available():
 
 def test_pipeline_orchestrator_backend_param():
     """验证 PipelineOrchestrator 接受 backend 参数。"""
-    from tools.server.orchestrator import PipelineOrchestrator
+    from tools.server.pipeline_orchestrator import PipelineOrchestrator
 
     orch = PipelineOrchestrator(backend="workflow")
     assert orch.backend == "workflow"
