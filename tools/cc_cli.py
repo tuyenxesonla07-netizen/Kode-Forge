@@ -899,4 +899,13 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # Fix Windows encoding for frozen binaries (PyInstaller .exe / macOS .app)
+    import sys
+    import os
+    if getattr(sys, "frozen", False):
+        os.environ.setdefault("PYTHONIOENCODING", "utf-8")
+        if sys.platform == "win32":
+            # Force UTF-8 stdout to prevent GBK codec crash on ✓ ✗ etc.
+            sys.stdout.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
+            sys.stderr.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[attr-defined]
     main()
