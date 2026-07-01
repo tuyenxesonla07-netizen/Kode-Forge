@@ -75,7 +75,6 @@ class Memory:
         return self.long.context_for(self.session_id)
 
     def status(self) -> dict:
-        """Return the status."""
         return {
             "session_id": self.session_id,
             "short_term_messages": len(self.short.messages),

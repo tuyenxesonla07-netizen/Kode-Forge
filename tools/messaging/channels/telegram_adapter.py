@@ -28,7 +28,6 @@ class TelegramAdapter(ChannelAdapter):
         self._status = ChannelStatus.STOPPED
 
     async def send(self, message: MessageEnvelope) -> bool:
-        """Send a message."""
         if not self._token:
             logger.warning("[Telegram] No token configured, skipping send")
             return False
@@ -48,22 +47,18 @@ class TelegramAdapter(ChannelAdapter):
             return False
 
     async def receive(self) -> Optional[MessageEnvelope]:
-        """Receive a message."""
         # Telegram webhook 通过 HTTP 推送，不在 adapter 中轮询
         return None
 
     async def start(self) -> None:
-        """Start the process."""
         self._status = ChannelStatus.RUNNING
         logger.info("[Telegram] Adapter started (chat=%s)", self._chat_id)
 
     async def stop(self) -> None:
-        """Stop the process."""
         self._status = ChannelStatus.STOPPED
         logger.info("[Telegram] Adapter stopped")
 
     async def health_check(self) -> dict:
-        """Return health status."""
         if not self._token:
             return {"status": "error", "reason": "no_token"}
         try:

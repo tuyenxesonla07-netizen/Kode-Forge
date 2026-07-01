@@ -108,7 +108,6 @@ class CorrelationIdMiddleware:
 
         # 包装 send 以注入响应头
         async def send_wrapper(message) -> None:
-            """Wrap the ASGI send callable."""
             if message["type"] == "http.response.start":
                 headers = dict(message.get("headers", []))
                 headers[b"x-request-id"] = request_id.encode("utf-8")
@@ -134,7 +133,6 @@ class SecurityHeadersMiddleware:
             return
 
         async def send_wrapper(message) -> None:
-            """Wrap the ASGI send callable."""
             if message["type"] == "http.response.start":
                 headers = dict(message.get("headers", []))
                 headers[b"x-content-type-options"] = b"nosniff"
@@ -273,7 +271,6 @@ class GuardrailsMiddleware:
         body_sent = False
 
         async def receive_wrapper() -> Any:
-            """Wrap the ASGI receive callable."""
             nonlocal body_sent
             if not body_sent:
                 body_sent = True
@@ -289,7 +286,6 @@ class GuardrailsMiddleware:
         response_body_chunks = []
 
         async def send_wrapper(message) -> None:
-            """Wrap the ASGI send callable."""
             if message["type"] == "http.response.body":
                 chunk = message.get("body", b"")
                 if chunk:

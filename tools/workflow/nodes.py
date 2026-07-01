@@ -57,7 +57,6 @@ class LLMNode:
         self.max_tokens = max_tokens
 
     async def execute(self, inputs: dict) -> str:
-        """Execute the node logic."""
         prompt = self.prompt_template
         # 替换 {{input}} 占位符
         for key, value in inputs.items():
@@ -90,7 +89,6 @@ class RAGNode:
         self.top_k = top_k
 
     async def execute(self, inputs: dict) -> dict:
-        """Execute the node logic."""
         query = inputs.get("query", "")
         if not self.rag_engine or not query:
             return {"sources": [], "query": query}
@@ -114,7 +112,6 @@ class ToolNode:
         self.arguments = arguments or {}
 
     async def execute(self, inputs: dict) -> dict:
-        """Execute the node logic."""
         if not self.tool_registry or not self.tool_name:
             return {"error": "Tool not configured"}
 
@@ -139,7 +136,6 @@ class CodeNode:
         self.safe_mode = safe_mode
 
     async def execute(self, inputs: dict) -> dict:
-        """Execute the node logic."""
         code = self.code_template
         for key, value in inputs.items():
             code = code.replace(f"{{{{{key}}}}}", repr(value))
@@ -183,7 +179,6 @@ class BranchNode:
         self.branches = branches or {"true": "", "false": ""}
 
     async def execute(self, inputs: dict) -> str:
-        """Execute the node logic."""
         try:
             result = eval(self.condition, {"__builtins__": {}}, inputs)
             branch = "true" if result else "false"
@@ -221,7 +216,6 @@ class HumanNode:
         self.approval_handler = approval_handler
 
     async def execute(self, inputs: dict) -> dict:
-        """Execute the node logic."""
         if not self.approval_handler:
             # 无审批处理器时自动通过（降级模式）
             return {"approved": True, "approver": "none", "prompt": self.prompt}

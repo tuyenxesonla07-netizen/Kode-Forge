@@ -8,7 +8,6 @@ import sys
 
 
 def cmd_run(args: argparse.Namespace) -> None:
-    """Run the pipeline."""
     from agents.pipeline import Pipeline
 
     requirement = " ".join(args.requirement) if isinstance(args.requirement, list) else args.requirement
@@ -39,7 +38,6 @@ def cmd_run(args: argparse.Namespace) -> None:
 
 
 def cmd_serve(args: argparse.Namespace) -> None:
-    """Start the API server."""
     from tools.server.app import create_app, ServerConfig
     from tools.rag import RAGPipeline, RAGConfig, Document
 
@@ -67,7 +65,6 @@ def cmd_serve(args: argparse.Namespace) -> None:
 
 
 def cmd_eval(args: argparse.Namespace) -> None:
-    """Run the evaluation suite."""
     print("\n  CC Eval Suite")
     print("  ─────────────────────────────")
     try:

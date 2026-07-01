@@ -57,19 +57,15 @@ class ContextWindow:
         self._evict()
 
     def add_system(self, content: str, priority: int = 5) -> None:
-        """Add a system message to the context."""
         self.add(ContextItem(role="system", content=content, priority=priority))
 
     def add_user_message(self, content: str, priority: int = 5) -> None:
-        """Add a user message to the context."""
         self.add(ContextItem(role="user", content=content, priority=priority))
 
     def add_assistant(self, content: str, priority: int = 5) -> None:
-        """Add an assistant message to the context."""
         self.add(ContextItem(role="assistant", content=content, priority=priority))
 
     def add_tool_result(self, content: str, priority: int = 4,
-        """Add a tool result to the context."""
                         tool_name: str = "") -> None:
         self.add(ContextItem(
             role="tool", content=content, priority=priority, tool_name=tool_name,
@@ -155,7 +151,6 @@ class LifecycleHooks:
     def on(self, hook: str) -> Any:
         """装饰器语法注册钩子: @hooks.on('on_step')"""
         def decorator(fn: LifecycleHandler) -> LifecycleHandler:
-            """Create a decorator for the given function."""
             self.register(hook, fn)
             return fn
         return decorator

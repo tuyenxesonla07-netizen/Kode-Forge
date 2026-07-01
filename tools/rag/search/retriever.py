@@ -20,7 +20,6 @@ class Retriever(Protocol):
     """Interface every retriever must satisfy."""
 
     def retrieve(self, query: str, top_k: int) -> list[Document]: ...
-        """Retrieve documents for a query."""
 
 
 # ---------------------------------------------------------------------------

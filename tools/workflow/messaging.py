@@ -37,12 +37,10 @@ class Topic:
 
     @classmethod
     def task_for(cls, module: str) -> str:
-        """Return the task for an agent."""
         return f"{cls.TASK_PREFIX}{module}"
 
     @classmethod
     def result_for(cls, module: str) -> str:
-        """Return the result for an agent."""
         return f"{cls.RESULT_PREFIX}{module}"
 
 
@@ -84,22 +82,18 @@ class Message:
 
     @property
     def from_agent(self) -> str:
-        """Return the source agent."""
         return self.meta.get("from", "")
 
     @property
     def to_agent(self) -> str:
-        """Return the target agent."""
         return self.meta.get("to", "")
 
     @property
     def msg_id(self) -> str:
-        """Return the message ID."""
         return self.meta.get("msg_id", "")
 
     @property
     def correlation_id(self) -> str:
-        """Return the correlation ID."""
         return self.meta.get("correlation_id", "")
 
     def is_expired(self) -> bool:
@@ -115,7 +109,6 @@ class Message:
             return False
 
     def to_dict(self) -> Dict:
-        """Convert to dictionary representation."""
         return {"meta": self.meta, "payload": self.payload}
 
     def __repr__(self) -> str:

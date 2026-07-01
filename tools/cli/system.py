@@ -9,7 +9,6 @@ import sys
 
 
 def cmd_status(args: argparse.Namespace) -> None:
-    """Show system status."""
     from tools.llm.model_switcher import ModelSwitcher, ModelRegistry
 
     registry = ModelRegistry()
@@ -29,7 +28,6 @@ def cmd_status(args: argparse.Namespace) -> None:
 
 
 def cmd_validate(args: argparse.Namespace) -> None:
-    """Validate configuration."""
     import io
     from tools.schema_validator import validate_all
 
@@ -48,7 +46,6 @@ def cmd_validate(args: argparse.Namespace) -> None:
 
 
 def cmd_gui(args: argparse.Namespace) -> None:
-    """Launch the GUI."""
     import subprocess
 
     gui_path = os.path.join(os.path.dirname(__file__), "..", "..", "gui", "app.py")

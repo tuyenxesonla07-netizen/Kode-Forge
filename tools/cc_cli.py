@@ -475,7 +475,6 @@ def _cmd_run_langgraph(args: argparse.Namespace) -> None:
     import asyncio
 
     async def run_graph() -> dict:
-        """Run the graph workflow."""
         state = {"query": args.requirement, "current_phase": 1}
         return await backend.execute(graph, state)
 

@@ -360,7 +360,6 @@ def create_app(
             raise HTTPException(status_code=400, detail="Missing 'requirement' field")
 
         async def event_stream() -> Iterator:
-            """Yield SSE events."""
             try:
                 async for event in orchestrator.stream_pipeline(requirement):
                     yield event.to_sse()
@@ -514,7 +513,6 @@ def create_app(
             raise HTTPException(status_code=400, detail="Missing 'message' field")
 
         async def event_stream() -> Iterator:
-            """Yield SSE events."""
             async for event in conversation_mgr.send_message(conversation_id, message):
                 yield event
 

@@ -220,7 +220,6 @@ class MockLLMProvider(LLMProvider):
         return self.complete(prompt, system_prompt, output_format, max_tokens, temperature)
 
     def get_name(self) -> str:
-        """Return the name."""
         return "mock"
 
     def get_call_history(self) -> List[Dict]:

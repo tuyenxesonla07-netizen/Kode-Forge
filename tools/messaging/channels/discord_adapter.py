@@ -28,7 +28,6 @@ class DiscordAdapter(ChannelAdapter):
         self._status = ChannelStatus.STOPPED
 
     async def send(self, message: MessageEnvelope) -> bool:
-        """Send a message."""
         if not self._token:
             logger.warning("[Discord] No token configured, skipping send")
             return False
@@ -50,21 +49,17 @@ class DiscordAdapter(ChannelAdapter):
             return False
 
     async def receive(self) -> Optional[MessageEnvelope]:
-        """Receive a message."""
         return None
 
     async def start(self) -> None:
-        """Start the process."""
         self._status = ChannelStatus.RUNNING
         logger.info("[Discord] Adapter started (channel=%s)", self._channel_id)
 
     async def stop(self) -> None:
-        """Stop the process."""
         self._status = ChannelStatus.STOPPED
         logger.info("[Discord] Adapter stopped")
 
     async def health_check(self) -> dict:
-        """Return health status."""
         if not self._token:
             return {"status": "error", "reason": "no_token"}
         try:

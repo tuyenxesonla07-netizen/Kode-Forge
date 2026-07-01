@@ -52,7 +52,6 @@ class IngestRequest:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> IngestRequest:
-        """Create instance from dictionary."""
         return cls(documents=data.get("documents", []))
 
 
@@ -66,7 +65,6 @@ class QueryRequest:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> QueryRequest:
-        """Create instance from dictionary."""
         return cls(
             query=data.get("query", ""),
             top_k=data.get("top_k", 10),
@@ -86,7 +84,6 @@ class QueryResponse:
     latency_ms: float = 0.0
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation."""
         return {
             "query": self.query,
             "answer": self.answer,
@@ -801,7 +798,6 @@ def _build_flask_app(
 
     @app.route("/api/v1/health", methods=["GET"])
     def health_check() -> Any:
-        """Return health status."""
         obs = observer
         if obs:
             return jsonify(obs.health_check(
@@ -811,7 +807,6 @@ def _build_flask_app(
 
     @app.route("/api/v1/query", methods=["POST"])
     def query() -> Any:
-        """Handle a query request."""
         start = time.time()
         data = request.get_json()
         if not data:
@@ -856,7 +851,6 @@ def _build_flask_app(
 
     @app.route("/api/v1/ingest", methods=["POST"])
     def ingest() -> Any:
-        """Ingest documents into the pipeline."""
         data = request.get_json()
         if not data:
             return jsonify({"error": "No JSON data"}), 400

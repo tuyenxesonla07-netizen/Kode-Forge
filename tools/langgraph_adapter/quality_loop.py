@@ -44,7 +44,6 @@ def make_quality_condition_fn(
     expected_value = quality_gate.get("value", True)
 
     def quality_condition_fn(state: LangGraphState) -> str:
-        """Evaluate the quality condition."""
         node_outputs = state.get("node_outputs", {})
         fix_iterations = state.get("fix_iterations", 0)
 
@@ -135,7 +134,6 @@ def make_fix_iteration_updater() -> callable:
         节点函数 async (state) -> {"fix_iterations": N+1}
     """
     async def fix_iteration_fn(state: LangGraphState) -> dict[str, Any]:
-        """Execute a fix iteration."""
         current = state.get("fix_iterations", 0)
         return {"fix_iterations": current + 1}
 

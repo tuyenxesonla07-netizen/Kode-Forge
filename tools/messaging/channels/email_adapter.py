@@ -42,7 +42,6 @@ class EmailAdapter(ChannelAdapter):
         self._status = ChannelStatus.STOPPED
 
     async def send(self, message: MessageEnvelope) -> bool:
-        """Send a message."""
         try:
             from aiosmtplib import SMTP
             to_addr = message.reply_to or message.payload.get("to", "")
@@ -73,22 +72,18 @@ class EmailAdapter(ChannelAdapter):
             return False
 
     async def receive(self) -> Optional[MessageEnvelope]:
-        """Receive a message."""
         # Email 接收需要 IMAP/POP3，不在本适配器范围内
         return None
 
     async def start(self) -> None:
-        """Start the process."""
         self._status = ChannelStatus.RUNNING
         logger.info("[Email] Adapter started (%s:%d)", self._smtp_host, self._smtp_port)
 
     async def stop(self) -> None:
-        """Stop the process."""
         self._status = ChannelStatus.STOPPED
         logger.info("[Email] Adapter stopped")
 
     async def health_check(self) -> dict:
-        """Return health status."""
         try:
             from aiosmtplib import SMTP
             async with SMTP(hostname=self._smtp_host, port=self._smtp_port) as smtp:

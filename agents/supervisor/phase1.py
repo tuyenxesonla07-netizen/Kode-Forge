@@ -12,11 +12,12 @@ Phase 1 pipeline:
 
 import logging
 import os
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
 
-from agents.supervisor.types import Requirement, CompiledPipeline
+from agents.supervisor.types import Requirement, ModuleTask, CompiledPipeline
 
 logger = logging.getLogger(__name__)
+
 
 def run_phase1(
     supervisor,  # CodexSupervisor instance (avoids circular import)
@@ -48,7 +49,11 @@ def run_phase1(
             "approved": bool,
         }
     """
-    from agents.supervisor.agent_executor import ClaudeCodeExecutor, ExecutionBackend
+    from agents.supervisor.agent_executor import (
+        ClaudeCodeExecutor,
+        ExecutionBackend,
+        TaskSpec,
+    )
 
     # Use provided backend or create default
     if backend is None:
@@ -69,7 +74,6 @@ def run_phase1(
                 self._provider = provider
 
             def execute_task(self, task) -> Any:
-                """Execute task."""
                 from agents.supervisor.agent_executor import TaskResult
                 code = ClaudeCodeExecutor(self._provider).generate_code(
                     spec=task.spec, module_name=task.module_name
@@ -81,7 +85,6 @@ def run_phase1(
                 )
 
             def get_name(self) -> str:
-                """Return the name."""
                 return "default"
 
         backend = _DefaultBackend(llm_provider=llm_provider)
@@ -206,6 +209,7 @@ def run_phase1(
         "approved": False,
     }
 
+
 def generate_code_for_modules(
     supervisor,
     module_specs: Dict[str, Any],
@@ -228,6 +232,7 @@ def generate_code_for_modules(
     """
     return _generate_code_for_modules(supervisor, module_specs, backend, requirement, enable_conflict_resolution)
 
+
 def _generate_code_for_modules(
     supervisor,
     module_specs: Dict[str, Any],
@@ -236,7 +241,7 @@ def _generate_code_for_modules(
     enable_conflict_resolution: bool = True,
 ) -> Dict[str, str]:
     """Internal: generate code with optional conflict resolution."""
-    from agents.supervisor.agent_executor import MergeCoordinator
+    from agents.supervisor.agent_executor import TaskSpec, MergeCoordinator
 
     code_artifact: Dict[str, str] = {}
     logger.info("[Supervisor] Starting real code generation for %d modules...", len(module_specs))
@@ -351,6 +356,7 @@ def _generate_code_for_modules(
                 logger.warning("[ComputerUse] 验证失败: %s", computer_use_report.output)
 
     return code_artifact
+
 
 def _module_to_file_path(module_name: str) -> str:
     """Convert a module name to its target file path."""

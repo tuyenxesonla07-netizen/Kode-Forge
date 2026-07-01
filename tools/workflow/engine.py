@@ -293,11 +293,9 @@ class WorkflowEngine:
         return workflow
 
     def get_workflow(self, workflow_id: str) -> Optional[Workflow]:
-        """Get a workflow by ID."""
         return self._workflows.get(workflow_id)
 
     def list_workflows(self) -> List[dict]:
-        """List all workflows."""
         return [
             {"id": w.id, "name": w.name, "node_count": len(w.nodes)}
             for w in self._workflows.values()
@@ -345,11 +343,9 @@ class WorkflowEngine:
             await asyncio.sleep(poll_interval)
 
     def get_run_result(self, run_id: str) -> Optional[WorkflowResult]:
-        """Get the result of a run."""
         return self._runs.get(run_id)
 
     def list_runs(self, workflow_id: str = None) -> List[dict]:
-        """List all runs."""
         runs = []
         for run_id, result in self._runs.items():
             if workflow_id and result.workflow_id != workflow_id:

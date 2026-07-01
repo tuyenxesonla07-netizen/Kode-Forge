@@ -38,7 +38,6 @@ class SimpleTokenizer:
     """
 
     def tokenize(self, text: str) -> list[str]:
-        """Tokenize the input text."""
         return _UNICODE_WORD_RE.findall(text.lower())
 
 
@@ -57,11 +56,9 @@ class JiebaTokenizer:
 
     @property
     def available(self) -> bool:
-        """Return True if available."""
         return self._jieba is not None
 
     def tokenize(self, text: str) -> list[str]:
-        """Tokenize the input text."""
         if self._jieba is None:
             return SimpleTokenizer().tokenize(text)
         tokens = list(self._jieba.cut(text, cut_all=False))

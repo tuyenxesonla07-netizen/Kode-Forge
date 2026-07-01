@@ -40,7 +40,6 @@ class StoreDatabase:
         self._conn.commit()
 
     def put(self, store_type: str, key: str, data: Any) -> None:
-        """Store the item."""
         with self._lock:
             serialized = json.dumps(data, ensure_ascii=False, default=str)
             self._conn.execute(
@@ -54,7 +53,6 @@ class StoreDatabase:
             self._conn.commit()
 
     def get(self, store_type: str, key: str) -> Optional[Any]:
-        """Retrieve the item."""
         row = self._conn.execute(
             "SELECT data FROM store_data WHERE key = ? AND store_type = ?",
             (key, store_type),
@@ -64,7 +62,6 @@ class StoreDatabase:
         return json.loads(row[0])
 
     def get_all(self, store_type: str) -> Dict[str, Any]:
-        """Return all stored items."""
         rows = self._conn.execute(
             "SELECT key, data FROM store_data WHERE store_type = ?",
             (store_type,),
@@ -72,7 +69,6 @@ class StoreDatabase:
         return {row[0]: json.loads(row[1]) for row in rows}
 
     def delete(self, store_type: str, key: str) -> bool:
-        """Delete the item."""
         cursor = self._conn.execute(
             "DELETE FROM store_data WHERE key = ? AND store_type = ?",
             (key, store_type),
@@ -81,13 +77,11 @@ class StoreDatabase:
         return cursor.rowcount > 0
 
     def clear(self, store_type: str) -> None:
-        """Clear all stored items."""
         with self._lock:
             self._conn.execute("DELETE FROM store_data WHERE store_type = ?", (store_type,))
             self._conn.commit()
 
     def close(self) -> None:
-        """Close the store connection."""
         self._conn.close()
 
     def __enter__(self) -> None:

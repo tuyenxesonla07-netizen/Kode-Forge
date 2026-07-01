@@ -49,22 +49,18 @@ class InMemoryStore(MemoryStore):
         self._data: dict[str, dict] = {}
 
     def get(self, session_id: str) -> Optional[dict]:
-        """Retrieve the item."""
         return self._data.get(session_id)
 
     def put(self, session_id: str, data: dict) -> None:
-        """Store the item."""
         self._data[session_id] = data
 
     def delete(self, session_id: str) -> bool:
-        """Delete the item."""
         if session_id in self._data:
             del self._data[session_id]
             return True
         return False
 
     def list_sessions(self) -> list[str]:
-        """List all sessions."""
         return list(self._data.keys())
 
 
@@ -94,16 +90,13 @@ class JSONFileStore(MemoryStore):
             logger.error("[JSONFileStore] Save failed: %s", e)
 
     def get(self, session_id: str) -> Optional[dict]:
-        """Retrieve the item."""
         return self._data.get(session_id)
 
     def put(self, session_id: str, data: dict) -> None:
-        """Store the item."""
         self._data[session_id] = data
         self._save()
 
     def delete(self, session_id: str) -> bool:
-        """Delete the item."""
         if session_id in self._data:
             del self._data[session_id]
             self._save()
@@ -111,5 +104,4 @@ class JSONFileStore(MemoryStore):
         return False
 
     def list_sessions(self) -> list[str]:
-        """List all sessions."""
         return list(self._data.keys())

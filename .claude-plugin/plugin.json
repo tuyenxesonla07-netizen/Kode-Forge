@@ -1,0 +1,15 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "kodeforge",
+  "displayName": "KodeForge",
+  "version": "0.6.0",
+  "description": "Schema-First multi-agent code generation pipeline. Write JSON Schemas → get production-ready code.",
+  "author": {
+    "name": "KodeForge Contributors"
+  },
+  "license": "MIT",
+  "keywords": ["code-generation", "multi-agent", "schema-first", "rag", "pipeline"],
+  "defaultEnabled": true,
+  "skills": "./skills/",
+  "hooks": "./.claude-plugin/hooks.json"
+}

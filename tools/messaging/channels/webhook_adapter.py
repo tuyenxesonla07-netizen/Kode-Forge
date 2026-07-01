@@ -29,7 +29,6 @@ class WebhookAdapter(ChannelAdapter):
         self._status = ChannelStatus.STOPPED
 
     async def send(self, message: MessageEnvelope) -> bool:
-        """Send a message."""
         if not self._url:
             logger.warning("[Webhook] No URL configured, skipping send")
             return False
@@ -52,22 +51,18 @@ class WebhookAdapter(ChannelAdapter):
             return False
 
     async def receive(self) -> Optional[MessageEnvelope]:
-        """Receive a message."""
         # Webhook 接收通过 HTTP 入口（webhook_ingress.py），不在 adapter 中轮询
         return None
 
     async def start(self) -> None:
-        """Start the process."""
         self._status = ChannelStatus.RUNNING
         logger.info("[Webhook] Adapter started (url=%s)", self._url[:80])
 
     async def stop(self) -> None:
-        """Stop the process."""
         self._status = ChannelStatus.STOPPED
         logger.info("[Webhook] Adapter stopped")
 
     async def health_check(self) -> dict:
-        """Return health status."""
         if not self._url:
             return {"status": "error", "reason": "no_url"}
         try:

@@ -29,7 +29,6 @@ class SlackAdapter(ChannelAdapter):
         self._client = None
 
     async def send(self, message: MessageEnvelope) -> bool:
-        """Send a message."""
         if not self._token:
             logger.warning("[Slack] No token configured, skipping send")
             return False
@@ -47,22 +46,18 @@ class SlackAdapter(ChannelAdapter):
             return False
 
     async def receive(self) -> Optional[MessageEnvelope]:
-        """Receive a message."""
         # Slack 通过 webhook/事件推送接收，不在 adapter 中轮询
         return None
 
     async def start(self) -> None:
-        """Start the process."""
         self._status = ChannelStatus.RUNNING
         logger.info("[Slack] Adapter started (channel=%s)", self._channel_id)
 
     async def stop(self) -> None:
-        """Stop the process."""
         self._status = ChannelStatus.STOPPED
         logger.info("[Slack] Adapter stopped")
 
     async def health_check(self) -> dict:
-        """Return health status."""
         if not self._token:
             return {"status": "error", "reason": "no_token"}
         try:

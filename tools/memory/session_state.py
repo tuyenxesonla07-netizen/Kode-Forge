@@ -88,7 +88,6 @@ class SessionState:
         return state
 
     def to_dict(self) -> dict:
-        """Convert to dictionary representation."""
         return {
             "session_id": self.session_id,
             "user_id": self.user_id,

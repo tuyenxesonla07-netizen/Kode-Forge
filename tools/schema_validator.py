@@ -36,29 +36,23 @@ class ValidationReport:
 
     @property
     def errors(self) -> List[ValidationIssue]:
-        """Return validation errors."""
         return [i for i in self.issues if i.severity == "error"]
 
     @property
     def warnings(self) -> List[ValidationIssue]:
-        """Return validation warnings."""
         return [i for i in self.issues if i.severity == "warning"]
 
     @property
     def is_valid(self) -> bool:
-        """Return True if validation passed."""
         return len(self.errors) == 0
 
     def add(self, severity: str, message: str, file: str = "", detail: str = "") -> None:
-        """Add an item."""
         self.issues.append(ValidationIssue(severity, message, file, detail))
 
     def merge(self, other: "ValidationReport") -> None:
-        """Merge another instance."""
         self.issues.extend(other.issues)
 
     def summary(self) -> str:
-        """Return a validation summary."""
         lines = []
         if self.is_valid:
             lines.append("✅ All validations passed!")

@@ -242,7 +242,6 @@ class OpenAICompatibleProvider(LLMProvider):
         )
 
     def get_name(self) -> str:
-        """Return the name."""
         return f"{self._backend}/{self._model}"
 
     async def acomplete(
@@ -412,7 +411,6 @@ class GeminiProvider(LLMProvider):
         )
 
     def get_name(self) -> str:
-        """Return the name."""
         return f"gemini/{self._model}"
 
     async def acomplete(

@@ -26,13 +26,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from agents.runtime.state import AgentState, StopReason, create_agent_state
 from agents.supervisor.router import SupervisorRouter
 
 logger = logging.getLogger(__name__)
+
 
 @dataclass
 class AgentOrchestratorConfig:
@@ -42,6 +43,7 @@ class AgentOrchestratorConfig:
     skill_registry: Any = None
     tool_registry: Any = None
     approval_handler: Any = None
+
 
 class AgentOrchestrator:
     """V0.5.0 统一 Agent 运行时入口。

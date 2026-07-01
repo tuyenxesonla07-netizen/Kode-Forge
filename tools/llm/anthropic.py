@@ -171,7 +171,6 @@ class AnthropicClaudeProvider(LLMProvider):
         )
 
     def get_name(self) -> str:
-        """Return the name."""
         return f"anthropic/{self._model}"
 
     async def acomplete(

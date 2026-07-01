@@ -83,7 +83,6 @@ def _build_llm_node(
     max_tokens = node.config.get("max_tokens", 4096)
 
     async def llm_node_fn(state: LangGraphState) -> dict[str, Any]:
-        """Create an LLM node function."""
         inputs = _get_node_inputs(state, node)
         prompt = prompt_template
         for key, value in inputs.items():
@@ -122,7 +121,6 @@ def _build_rag_node(
     top_k = node.config.get("top_k", 5)
 
     async def rag_node_fn(state: LangGraphState) -> dict[str, Any]:
-        """Create a RAG node function."""
         inputs = _get_node_inputs(state, node)
         query = inputs.get("query", node.config.get("query", ""))
 
@@ -156,7 +154,6 @@ def _build_tool_node(
     arguments = node.config.get("arguments", {})
 
     async def tool_node_fn(state: LangGraphState) -> dict[str, Any]:
-        """Create a tool node function."""
         inputs = _get_node_inputs(state, node)
         args = {**arguments, **inputs}
 
@@ -183,7 +180,6 @@ def _build_code_node(
     safe_mode = node.config.get("safe_mode", False)
 
     async def code_node_fn(state: LangGraphState) -> dict[str, Any]:
-        """Create a code node function."""
         inputs = _get_node_inputs(state, node)
         code = code_template
         for key, value in inputs.items():
@@ -227,7 +223,6 @@ def _build_branch_node(
     branches = node.config.get("branches", {"true": "", "false": ""})
 
     async def branch_node_fn(state: LangGraphState) -> dict[str, Any]:
-        """Create a branch node function."""
         inputs = _get_node_inputs(state, node)
         context = {
             "node_outputs": state.get("node_outputs", {}),
@@ -257,7 +252,6 @@ def _build_human_node(
     risk_level = node.config.get("risk_level", "high")
 
     async def human_node_fn(state: LangGraphState) -> dict[str, Any]:
-        """Create a human node function."""
         inputs = _get_node_inputs(state, node)
         # 返回待审批状态，由 LangGraph 的 interrupt_before 处理
         return {

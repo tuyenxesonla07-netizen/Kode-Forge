@@ -43,7 +43,6 @@ def make_human_interrupt_node(
         包装后的节点函数
     """
     async def interrupt_node_fn(state: LangGraphState) -> dict[str, Any]:
-        """Create an interrupt node function."""
         # 检查是否已有审批结果（从 pending_human 中）
         pending = state.get("pending_human")
         if pending and pending.get("approved") is not None:

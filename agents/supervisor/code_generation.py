@@ -13,9 +13,10 @@ Handles:
 import ast
 import concurrent.futures
 import logging
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
+
 
 def generate_code(
     module_spec: Dict[str, Any],
@@ -35,6 +36,7 @@ def generate_code(
     except (ImportError, RuntimeError) as e:
         logger.warning("[Supervisor] ClaudeCodeExecutor not available (%s), falling back to inline", e)
         return _generate_code_inline(module_spec, llm_provider, module_name, timeout=timeout)
+
 
 def _generate_code_inline(
     module_spec: Dict[str, Any],

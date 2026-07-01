@@ -29,7 +29,6 @@ class Message:
             self.timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     def to_dict(self) -> dict:
-        """Convert to dictionary representation."""
         return {"role": self.role, "content": self.content}
 
 

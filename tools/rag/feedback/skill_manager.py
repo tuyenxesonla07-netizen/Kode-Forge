@@ -63,13 +63,11 @@ class LearnedSkill:
 
     @property
     def success_rate(self) -> float:
-        """Return the success rate."""
         if self.usage_count == 0:
             return 0.0
         return self.success_count / self.usage_count
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation."""
         return {
             "name": self.name,
             "content": self.content,
@@ -85,7 +83,6 @@ class LearnedSkill:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> LearnedSkill:
-        """Create instance from dictionary."""
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
 
     def __repr__(self) -> str:

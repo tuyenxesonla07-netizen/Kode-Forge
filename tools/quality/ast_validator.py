@@ -52,22 +52,18 @@ class ValidationResult:
 
     @property
     def has_critical(self) -> bool:
-        """Return True if there are critical issues."""
         return any(i.severity == "critical" for i in self.issues)
 
     @property
     def critical_count(self) -> int:
-        """Return the number of critical issues."""
         return sum(1 for i in self.issues if i.severity == "critical")
 
     @property
     def major_count(self) -> int:
-        """Return the number of major issues."""
         return sum(1 for i in self.issues if i.severity == "major")
 
     @property
     def error_count(self) -> int:
-        """Return the number of errors."""
         return len(self.issues)
 
 

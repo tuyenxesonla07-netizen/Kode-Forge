@@ -275,13 +275,11 @@ class TraceSpan:
 
     @property
     def duration_ms(self) -> float:
-        """Return the duration in milliseconds."""
         if self.end_time:
             return (self.end_time - self.start_time) * 1000
         return (time.time() - self.start_time) * 1000
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation."""
         return {
             "name": self.name,
             "duration_ms": round(self.duration_ms, 2),
@@ -320,12 +318,10 @@ class RAGObserver:
 
     @property
     def metrics(self) -> RAGMetrics | None:
-        """Return observability metrics."""
         return self._metrics
 
     @property
     def logger(self) -> StructuredLogger | None:
-        """Return the logger instance."""
         return self._structured_logger
 
     @contextmanager

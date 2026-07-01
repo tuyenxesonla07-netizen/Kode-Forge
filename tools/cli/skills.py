@@ -7,7 +7,6 @@ import argparse
 
 
 def cmd_skills(args: argparse.Namespace) -> None:
-    """Manage skills."""
     subcmd = getattr(args, "skills_command", "list")
 
     if subcmd == "list":

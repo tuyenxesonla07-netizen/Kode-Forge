@@ -17,6 +17,7 @@ Sub-modules:
 """
 
 import logging
+import os
 from typing import Any, Dict, List, Optional
 
 from typing import TYPE_CHECKING
@@ -25,8 +26,12 @@ from agents.supervisor.types import Requirement, ModuleTask, CompiledPipeline
 from agents.supervisor.code_generation import generate_code as _generate_code_impl
 from agents.supervisor.phase1 import run_phase1 as _run_phase1_impl
 from agents.supervisor.phase1 import generate_code_for_modules as _generate_code_for_modules_impl
+from agents.supervisor.phase1 import _module_to_file_path
 
 logger = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from agents.pipeline import KodeForge
 
 # Re-export types for backward compatibility
 __all__ = [
@@ -35,6 +40,7 @@ __all__ = [
     "CompiledPipeline",
     "CodexSupervisor",
 ]
+
 
 class CodexSupervisor:
     """

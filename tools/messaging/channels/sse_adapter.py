@@ -43,7 +43,6 @@ class SSEAdapter(ChannelAdapter):
         self._status = ChannelStatus.STOPPED
 
     async def send(self, message: MessageEnvelope) -> bool:
-        """Send a message."""
         try:
             self._queue.put_nowait(message)
             return True
@@ -66,17 +65,14 @@ class SSEAdapter(ChannelAdapter):
             return None
 
     async def start(self) -> None:
-        """Start the process."""
         self._status = ChannelStatus.RUNNING
         logger.info("[SSE] Adapter started (queue_size=%d)", self._queue.maxsize)
 
     async def stop(self) -> None:
-        """Stop the process."""
         self._status = ChannelStatus.STOPPED
         logger.info("[SSE] Adapter stopped")
 
     async def health_check(self) -> dict:
-        """Return health status."""
         return {
             "status": "ok",
             "queue_size": self._queue.qsize(),

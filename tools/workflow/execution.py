@@ -546,7 +546,6 @@ class ResultAggregator:
 
     @property
     def results(self) -> list[AgentResult]:
-        """Return the results."""
         return list(self._results)
 
     def __len__(self) -> int:
@@ -601,12 +600,10 @@ class CircuitBreaker:
 
     @property
     def state(self) -> CircuitState:
-        """Return the current state."""
         return self._state
 
     @property
     def failure_count(self) -> int:
-        """Return the failure count."""
         return self._failure_count
 
     async def call(self, func: Callable, *args, **kwargs) -> Any:

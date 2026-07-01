@@ -21,13 +21,14 @@ import json
 import logging
 import re
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Callable
 
 from agents.runtime.state import AgentState, StopReason
 from agents.runtime._tool_context import ToolContextWrapper
 
 logger = logging.getLogger(__name__)
+
 
 # ---------------------------------------------------------------------------
 # Config & Step Record
@@ -44,6 +45,7 @@ class ReActLoopConfig:
     )
     output_format: str = "text"    # "text" | "json"
 
+
 @dataclass
 class ReActStep:
     """单次 ReAct 循环记录。"""
@@ -53,6 +55,7 @@ class ReActStep:
     action_input: dict
     observation: str
     success: bool
+
 
 # ---------------------------------------------------------------------------
 # ReActLoop

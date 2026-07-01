@@ -65,12 +65,10 @@ class MemoryItem:
             self.last_accessed = now
 
     def touch(self) -> None:
-        """Update the last access time."""
         self.last_accessed = datetime.now().isoformat(timespec="seconds")
         self.access_count += 1
 
     def to_dict(self) -> dict[str, Any]:
-        """Convert to dictionary representation."""
         return {
             "content": self.content,
             "source": self.source,
@@ -84,7 +82,6 @@ class MemoryItem:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> MemoryItem:
-        """Create instance from dictionary."""
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
 
 

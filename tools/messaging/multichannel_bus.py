@@ -35,7 +35,6 @@ from tools.workflow.messaging import MessageBus, Message
 
 logger = logging.getLogger(__name__)
 
-
 class MultiChannelBus:
     """
     多渠道消息总线。
@@ -79,7 +78,6 @@ class MultiChannelBus:
         用法 1: publish(message) — 发布到内部总线
         用法 2: publish(topic, message) — 发布到内部总线 + 外部渠道路由
         """
-        Message = None  # type: ignore
         from tools.workflow.messaging import Message
 
         if message is None:

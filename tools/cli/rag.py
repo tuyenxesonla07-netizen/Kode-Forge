@@ -22,7 +22,6 @@ def _make_pipeline() -> Any:
 
 
 def cmd_query(args: argparse.Namespace) -> None:
-    """Execute a RAG query."""
     pipeline = _make_pipeline()
     result = pipeline.query(args.text)
 
@@ -36,7 +35,6 @@ def cmd_query(args: argparse.Namespace) -> None:
 
 
 def cmd_search(args: argparse.Namespace) -> None:
-    """Execute a RAG search."""
     pipeline = _make_pipeline()
     result = pipeline.query(args.text)
 

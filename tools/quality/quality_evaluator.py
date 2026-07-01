@@ -24,17 +24,14 @@ class ReviewResult:
 
     @property
     def has_critical(self) -> bool:
-        """Return True if there are critical issues."""
         return any(i.get("severity") == "critical" for i in self.issues)
 
     @property
     def critical_count(self) -> int:
-        """Return the number of critical issues."""
         return sum(1 for i in self.issues if i.get("severity") == "critical")
 
     @property
     def major_count(self) -> int:
-        """Return the number of major issues."""
         return sum(1 for i in self.issues if i.get("severity") == "major")
 
 
