@@ -157,6 +157,16 @@ def _cmd_validate(args: argparse.Namespace) -> None:
 
     config_dir = getattr(args, "config_dir", "config")
 
+    # Frozen-binary: resolve config_dir relative to the bundled asset path.
+    if not os.path.isdir(config_dir):
+        try:
+            from tools._frozen_paths import config_dir as bundled_config
+            _bc = bundled_config()
+            if _bc.is_dir():
+                config_dir = str(_bc)
+        except Exception:
+            pass
+
     # Windows 控制台编码修复
     if sys.stdout.encoding and "gbk" in sys.stdout.encoding.lower():
         sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
@@ -262,8 +272,9 @@ def _cmd_run(args: argparse.Namespace) -> None:
     print("\n  [Phase 1] Schema → Pipeline Compilation...")
     try:
         compiler = PipelineCompiler()
-        pipeline_cfg = PipelineConfig.load("config/pipeline.yaml")
-        compiled = compiler.compile_from_config("config")
+        from tools._frozen_paths import resolve_path as _rp
+        pipeline_cfg = PipelineConfig.load(str(_rp("config/pipeline.yaml")))
+        compiled = compiler.compile_from_config(str(_rp("config")))
         print(f"    Modules: {len(compiled.module_schemas)}")
         print(f"    Order: {' → '.join(compiled.implementation_order)}")
         print(f"    Quality gates: {len(compiled.quality_gates.gates)}")
@@ -285,8 +296,9 @@ def _cmd_run(args: argparse.Namespace) -> None:
     llm_provider = create_llm_provider(provider)
 
     # 创建 Expert Agents
+    from tools._frozen_paths import resolve_path as _rp
     experts = create_expert_agents(
-        schemas_dir="config/schemas",
+        schemas_dir=str(_rp("config/schemas")),
         llm_provider=llm_provider,
         skill_manager=skill_registry,
     )
@@ -295,7 +307,7 @@ def _cmd_run(args: argparse.Namespace) -> None:
     # 加载 agents.yaml
     try:
         import yaml
-        with open("config/agents.yaml", encoding="utf-8") as f:
+        with open(_rp("config/agents.yaml"), encoding="utf-8") as f:
             content = f.read()
             lines = content.split("\n")
             yaml_lines = []
@@ -426,11 +438,12 @@ def _cmd_run_langgraph(args: argparse.Namespace) -> None:
 
     # 编译 Pipeline
     from tools.compiler import PipelineCompiler, PipelineConfig
+    from tools._frozen_paths import resolve_path as _rp
     compiler = PipelineCompiler()
-    pipeline_cfg = PipelineConfig.load("config/pipeline.yaml")
+    pipeline_cfg = PipelineConfig.load(str(_rp("config/pipeline.yaml")))
 
     print("\n  [Phase 1] Compiling pipeline...")
-    compiled = compiler.compile_from_config("config")
+    compiled = compiler.compile_from_config(str(_rp("config")))
     print(f"    Modules: {len(getattr(compiled, 'module_schemas', {}))}")
     print(f"    Order: {' → '.join(compiled.implementation_order)}")
 
@@ -647,20 +660,37 @@ def _cmd_gui(args: argparse.Namespace) -> None:
     """启动 GUI。"""
     import subprocess
 
-    gui_path = os.path.join(os.path.dirname(__file__), "..", "..", "gui", "app.py")
-    gui_path = os.path.normpath(gui_path)
+    # Resolve GUI path across source & PyInstaller frozen runtime.
+    try:
+        from tools._frozen_paths import project_root, is_frozen, bundle_dir
+        gui_path = (project_root() / "gui" / "__init__.py").resolve()
+    except ImportError:
+        gui_path = Path(os.path.normpath(
+            os.path.join(os.path.dirname(__file__), "..", "..", "gui", "__init__.py")
+        )).resolve()
 
-    if not os.path.exists(gui_path):
+    if not gui_path.exists():
         print(f"✗ GUI not found: {gui_path}")
+        print("\n  ℹ GUI requires streamlit: pip install streamlit")
         return
 
     port = getattr(args, "port", 8501)
+
+    # Frozen-binary: GUI requires Streamlit, which is an optional dependency
+    # NOT bundled in the release build. Fail gracefully with a useful hint.
+    if is_frozen():
+        print("\n  ✗ GUI is not bundled in this release package.")
+        print("    ℹ Install streamlit for GUI support:")
+        print("        pip install streamlit")
+        print(f"    ℹ Then re-run from source, or use the Streamlit Cloud image.")
+        return
+
     print(f"\n  CC GUI — Starting Streamlit...")
     print(f"  ─────────────────────────────")
     print(f"  http://localhost:{port}\n")
 
     subprocess.run(
-        [sys.executable, "-m", "streamlit", "run", gui_path, "--server.port", str(port)],
+        [sys.executable, "-m", "streamlit", "run", str(gui_path), "--server.port", str(port)],
         check=True,
     )
 

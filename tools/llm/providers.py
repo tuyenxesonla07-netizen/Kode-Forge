@@ -67,6 +67,21 @@ def _should_retry(exception: Exception) -> bool:
         return True
     return False
 
+
+def _mask_error(exc: Exception) -> str:
+    """Strip sensitive details from 401/403 errors before they reach user output."""
+    status_code = getattr(getattr(exc, "response", None), "status_code", None)
+    if status_code == 401:
+        return "LLM provider returned 401 — check your API key / token."
+    if status_code == 403:
+        return "LLM provider returned 403 — key may lack permission for this model."
+    # Fallback for SDKs that expose .status_code directly
+    if getattr(exc, "status_code", None) == 401:
+        return "LLM provider returned 401 — check your API key / token."
+    if getattr(exc, "status_code", None) == 403:
+        return "LLM provider returned 403 — key may lack permission for this model."
+    return str(exc)
+
 # ---------------------------------------------------------------------------
 # OpenAI-compatible provider
 # ---------------------------------------------------------------------------
@@ -233,7 +248,7 @@ class OpenAICompatibleProvider(LLMProvider):
         return LLMResponse(
             content="",
             success=False,
-            error=str(last_error),
+            error=_mask_error(last_error),
             model=self._model,
         )
 
@@ -401,7 +416,7 @@ class GeminiProvider(LLMProvider):
         return LLMResponse(
             content="",
             success=False,
-            error=str(last_error),
+            error=_mask_error(last_error),
             model=self._model,
         )
 

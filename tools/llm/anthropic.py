@@ -39,6 +39,22 @@ _BASE_DELAY_SECONDS = 2.0
 _DEFAULT_TIMEOUT_SECONDS = 120.0
 
 
+def _mask_error(exc: Exception) -> str:
+    """
+    Turn an HTTP/SDK exception into a safe, non-leaking error string.
+
+    401/403 responses from upstream gateways often contain full response bodies
+    (including token fragments or internal hostnames). Strip those details so
+    they never reach end-user output.
+    """
+    status_code = getattr(getattr(exc, "response", None), "status_code", None)
+    if status_code == 401:
+        return "LLM provider returned 401 — check your API key / token."
+    if status_code == 403:
+        return "LLM provider returned 403 — key may lack permission for this model."
+    return str(exc)
+
+
 class AnthropicClaudeProvider(LLMProvider):
     """
     Anthropic Claude API Provider
@@ -166,7 +182,7 @@ class AnthropicClaudeProvider(LLMProvider):
         return LLMResponse(
             content="",
             success=False,
-            error=str(last_error),
+            error=_mask_error(last_error),
             model=self._model,
         )
 

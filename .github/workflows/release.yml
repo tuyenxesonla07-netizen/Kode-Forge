@@ -66,6 +66,7 @@ jobs:
           pip install -r requirements.txt
 
       - name: Build (onedir)
+        shell: cmd
         run: >
           pyinstaller
           --onedir --console --clean --noconfirm
@@ -73,7 +74,8 @@ jobs:
           --paths .
           --paths tools --paths agents --paths gui
           --collect-all tools --collect-all agents
-          --collect-data config
+          --add-data "config;config"
+          --add-data "gui;gui"
           --hidden-import=tools.cc_cli
           --hidden-import=tools.rag --hidden-import=tools.rag.*
           --hidden-import=tools.quality --hidden-import=tools.quality.*
@@ -133,7 +135,8 @@ jobs:
           --paths .
           --paths tools --paths agents --paths gui
           --collect-all tools --collect-all agents
-          --collect-data config
+          --add-data "config:config"
+          --add-data "gui:gui"
           --hidden-import=tools.cc_cli
           --hidden-import=tools.rag --hidden-import=tools.rag.*
           --hidden-import=tools.quality --hidden-import=tools.quality.*
@@ -188,7 +191,8 @@ jobs:
           --paths .
           --paths tools --paths agents --paths gui
           --collect-all tools --collect-all agents
-          --collect-data config
+          --add-data "config:config"
+          --add-data "gui:gui"
           --hidden-import=tools.cc_cli
           --hidden-import=tools.rag --hidden-import=tools.rag.*
           --hidden-import=tools.quality --hidden-import=tools.quality.*

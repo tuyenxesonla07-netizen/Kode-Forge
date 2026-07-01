@@ -45,7 +45,15 @@ class PluginSkillRegistry:
     """Skill 插件注册器 — 从 plugins/skills/ 目录扫描加载。"""
 
     def __init__(self, plugins_dir: Path | None = None) -> None:
-        self._plugins_dir = plugins_dir
+        if plugins_dir is None:
+            # Frozen-aware default: resolve plugins/ next to the bundle root.
+            try:
+                from tools._frozen_paths import plugins_dir as _pd
+                self._plugins_dir = _pd()
+            except ImportError:
+                self._plugins_dir = Path("plugins")
+        else:
+            self._plugins_dir = plugins_dir
         self._skills: dict[str, PluginSkillEntry] = {}
         self._intent_index: dict[str, str] = {}    # intent → skill name
         self._load_errors: dict[str, str] = {}
