@@ -10,7 +10,6 @@ Email 渠道适配器 — 通过 aiosmtplib 发送邮件。
 from __future__ import annotations
 
 import logging
-import os
 from typing import Optional
 
 from tools.messaging.channel import ChannelAdapter, MessageEnvelope, ChannelStatus

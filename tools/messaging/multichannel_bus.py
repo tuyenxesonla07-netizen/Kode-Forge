@@ -28,7 +28,7 @@ from __future__ import annotations
 import asyncio
 import fnmatch
 import logging
-from typing import Any, Callable, Optional
+from typing import Any, Callable
 
 from tools.messaging.channel import ChannelAdapter, MessageEnvelope, ChannelRegistry
 from tools.workflow.messaging import MessageBus, Message
@@ -78,7 +78,6 @@ class MultiChannelBus:
         用法 1: publish(message) — 发布到内部总线
         用法 2: publish(topic, message) — 发布到内部总线 + 外部渠道路由
         """
-        from tools.workflow.messaging import Message
 
         if message is None:
             # 用法 1: 只有 message

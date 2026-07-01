@@ -32,7 +32,6 @@ class DiscordAdapter(ChannelAdapter):
             logger.warning("[Discord] No token configured, skipping send")
             return False
         try:
-            import discord
             # discord.py 通过 bot client 发送，这里简化为 HTTP API
             import aiohttp
             text = message.payload.get("text", str(message.payload))

@@ -12,7 +12,6 @@ SLA 定时器与升级策略 — 异步超时驱动的自动升级。
 from __future__ import annotations
 
 import asyncio
-import dataclasses
 import logging
 from dataclasses import dataclass, field
 from datetime import timedelta

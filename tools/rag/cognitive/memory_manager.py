@@ -31,11 +31,10 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 import numpy as np
 
-from tools.rag.rag_types import RAGConfig, Document
 
 logger = logging.getLogger(__name__)
 

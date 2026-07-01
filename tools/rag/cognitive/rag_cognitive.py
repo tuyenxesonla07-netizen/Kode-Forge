@@ -12,10 +12,7 @@ Provides:
 
 from __future__ import annotations
 
-import json
-import logging
 import re
-import threading
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
