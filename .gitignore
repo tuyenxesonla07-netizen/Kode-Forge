@@ -265,3 +265,9 @@ _verify_final.py
 !requirements.txt
 !requirements-dev.txt
 
+
+# Windows PyInstaller debug .spec (generated, do not track)
+*.spec
+
+# Claude Desktop local runtime state (per-user)
+.claude/
