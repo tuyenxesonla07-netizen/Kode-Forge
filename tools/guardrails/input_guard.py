@@ -19,7 +19,7 @@ from typing import List, Pattern
 # ─── 注入/越权模式（预编译） ─────────────────────────────────────────
 INJECTION_PATTERNS: List[Pattern] = [
     re.compile(r"忽略(之前|上面|以上|前面)?的?(所有)?(指令|提示|规则|设定)", re.IGNORECASE),
-    re.compile(r"ignore (all )?(previous|above) (instructions|prompts)", re.IGNORECASE),
+    re.compile(r"ignore[\s_-]*(all )?(previous|above)", re.IGNORECASE),
     re.compile(r"(打印|输出|告诉我|透露).{0,8}(system prompt|系统提示词|系统指令)", re.IGNORECASE),
     re.compile(r"你(现在|从现在起)?(是|扮演|假装)", re.IGNORECASE),
     re.compile(r"进入开发者模式", re.IGNORECASE),

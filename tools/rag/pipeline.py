@@ -207,9 +207,35 @@ class RAGPipeline:
 
     # ---- ingest ------------------------------------------------------------
 
-    def ingest(self, documents: Sequence[Document]) -> None:
-        """Index *documents* into all retrieval backends."""
+    def ingest(self, documents: Sequence[Document]) -> IngestReport:
+        """Index *documents* into all retrieval backends.
+
+        When :attr:`RAGConfig.validate_ingested_docs` is *True* each document
+        is checked against :class:`InputGuard` prompt-injection patterns
+        (RAG poisoning defence).  Malicious documents are rejected.
+
+        Returns an :class:`IngestReport` with counts of accepted / rejected.
+        """
+        from tools.rag.rag_types import IngestReport
+
         doc_list = list(documents)
+        report = IngestReport()
+
+        if self.config.validate_ingested_docs:
+            from tools.guardrails.input_guard import InputGuard
+
+            guard = InputGuard(max_length=100_000)
+            safe_docs: list[Document] = []
+            for doc in doc_list:
+                result = guard.check(doc.content)
+                if result.passed:
+                    safe_docs.append(doc)
+                else:
+                    report.rejected += 1
+                    report.rejected_sources.append(doc.source)
+            doc_list = safe_docs
+
+        report.accepted = len(doc_list)
         self._documents.extend(doc_list)
 
         if self.config.enable_bm25:
@@ -220,6 +246,7 @@ class RAGPipeline:
             self._graph.add_documents(doc_list)
 
         self._ingested = True
+        return report
 
     # ---- query -------------------------------------------------------------
 

@@ -118,3 +118,20 @@ class RAGConfig:
     # LLM settings
     llm_provider: Literal["mock", "anthropic", "openai"] = "mock"
     llm_model: str = "claude-sonnet-4-6"
+
+    # Ingestion validation — when True, docs are scanned for prompt-injection
+    # patterns before indexing (RAG poisoning defence). Opt-in for backward compat.
+    validate_ingested_docs: bool = False
+
+
+# ---------------------------------------------------------------------------
+# Ingestion report
+# ---------------------------------------------------------------------------
+
+@dataclass
+class IngestReport:
+    """Summary of a :meth:`RAGPipeline.ingest` call."""
+
+    accepted: int = 0
+    rejected: int = 0
+    rejected_sources: list[str] = field(default_factory=list)

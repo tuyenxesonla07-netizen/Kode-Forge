@@ -15,8 +15,11 @@ HTTP 中间件 — 关联 ID、安全头、请求体限制、Guardrails、错误
 import json
 import logging
 import re
+import time
 import uuid
 from typing import Any
+
+from starlette.types import Scope
 
 logger = logging.getLogger(__name__)
 
@@ -190,8 +193,28 @@ class RequestSizeLimitMiddleware:
 # Guardrails middleware (from guardrails_middleware.py)
 # ---------------------------------------------------------------------------
 
-# 需要检查的路径
-GUARDED_PATHS = ("/api/v1/pipeline/run", "/api/v1/pipeline/stream")
+# 需要检查的路径（glob 风格通配符；覆盖 pipeline/agents/webhook 全部 POST 端点）
+GUARDED_PATHS: tuple[str, ...] = (
+    "/api/v1/pipeline/run",
+    "/api/v1/pipeline/stream",
+    "/api/v1/agents/conversations",
+    "/api/v1/agents/conversations/*/messages",
+    "/api/v1/webhook/github",
+)
+
+
+def _path_is_guarded(path: str) -> bool:
+    """Return True if *path* matches any pattern in :data:`GUARDED_PATHS`.
+
+    Matching uses :mod:`fnmatch`-style globs so that dynamic segments
+    (e.g. ``/api/v1/agents/conversations/abc123/messages``) are supported.
+    """
+    import fnmatch
+
+    for pattern in GUARDED_PATHS:
+        if fnmatch.fnmatch(path, pattern):
+            return True
+    return False
 
 
 class GuardrailsMiddleware:
@@ -314,3 +337,123 @@ class GuardrailsMiddleware:
                         )
             except Exception as e:
                 logger.warning("Output guardrails check failed (request continues): %s", e)  # 不因 guardrails 错误影响服务
+
+
+# ---------------------------------------------------------------------------
+# RateLimitMiddleware — sliding-window request throttle per client IP
+# ---------------------------------------------------------------------------
+
+# Pre-compiled for performance
+_RATE_LIMIT_RE = re.compile(
+    r"^\s*(\d+)\s*/\s*(second|minute|hour|day)\s*$", re.IGNORECASE
+)
+_SECONDS_PER_UNIT = {"second": 1, "minute": 60, "hour": 3600, "day": 86400}
+
+
+def _parse_rate_limit(spec: str) -> tuple[int, int] | None:
+    """Parse a ``"<count>/<period>"`` rate-limit spec.
+
+    Returns ``(max_requests, window_seconds)`` or *None* on invalid input.
+    Used by :class:`RateLimitMiddleware` and the tests.
+    """
+    if not spec or not spec.strip():
+        return None
+
+    match = _RATE_LIMIT_RE.match(spec.strip())
+    if not match:
+        return None
+
+    count = int(match.group(1))
+    period = match.group(2).lower()
+
+    if count <= 0:
+        return None
+
+    window = _SECONDS_PER_UNIT.get(period)
+    if window is None:
+        return None
+
+    return (count, window)
+
+
+class RateLimitMiddleware:
+    """
+    Sliding-window rate limiter keyed by client IP.
+
+    Respects ``trusted_proxies`` to safely extract the real client
+    IP from the ``X-Forwarded-For`` header — proxies not in the list
+    are ignored so that attackers cannot spoof their IP to bypass limits.
+
+    Non-HTTP requests (WebSocket, lifespan) pass through without throttle.
+    """
+
+    def __init__(
+        self,
+        app,
+        rate_limit: str = "60/minute",
+        trusted_proxies: list[str] | None = None,
+    ) -> None:
+        self.app = app
+        parsed = _parse_rate_limit(rate_limit) if rate_limit else None
+        # When *parsed* is *None* the middleware is effectively disabled
+        self._max: int | None = parsed[0] if parsed else None
+        self._window: int = parsed[1] if parsed else 0
+        self._trusted_proxies: list[str] = trusted_proxies or []
+        # {client_ip: [timestamps]}
+        self._requests: dict[str, list[float]] = {}
+
+    # -- public helpers -------------------------------------------------------
+
+    def _client_ip(self, scope: Scope) -> str:
+        """Extract client IP, honouring *trusted_proxies* for XFF."""
+        peer: str = ""
+        client = scope.get("client")
+        if client and isinstance(client, (list, tuple)) and len(client) >= 1:
+            peer = str(client[0])
+
+        if peer and peer in self._trusted_proxies:
+            headers = dict(scope.get("headers", []))
+            xff = headers.get(b"x-forwarded-for", b"").decode("utf-8", errors="replace")
+            if xff:
+                # Leftmost value is the original client
+                original = xff.split(",")[0].strip()
+                if original:
+                    return original
+
+        return peer
+
+    # -- ASGI entry -----------------------------------------------------------
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        # No limit configured → pass through
+        if self._max is None:
+            await self.app(scope, receive, send)
+            return
+
+        ip = self._client_ip(scope)
+        now = time.monotonic()
+        window_start = now - self._window
+
+        timestamps = self._requests.setdefault(ip, [])
+        # Prune entries outside the current window
+        timestamps[:] = [t for t in timestamps if t > window_start]
+
+        if len(timestamps) >= self._max:
+            # Retry-after = window size (safe approximation)
+            retry_after = self._window
+            from starlette.responses import JSONResponse
+
+            response = JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded"},
+                headers={"retry-after": str(retry_after)},
+            )
+            await response(scope, receive, send)
+            return
+
+        timestamps.append(now)
+        await self.app(scope, receive, send)

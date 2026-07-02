@@ -14,8 +14,8 @@ from tools.hitl.approval import (
     ManualApprovalHandler,
     RISK_LEVELS,
     CRITICAL_MIN_APPROVERS,
-    ApprovalStatus,
 )
+from tools.hitl.approval_state import ApprovalStatus
 from tools.hitl.audit_chain import HashChainedAuditLog
 from tools.hitl.approval_chain import ApprovalChain
 from tools.hitl.approval_state import ApprovalStateMachine, is_terminal
