@@ -9,49 +9,30 @@ Responsibilities:
   - Dispatch tasks via Superpowers plugin
   - Aggregate agent outputs, deliver to Claude Code
   - Decide fix strategy when code review fails
+
+Sub-modules:
+  types            — shared dataclasses (Requirement, ModuleTask, CompiledPipeline)
+  code_generation  — LLM code generation with AST validation
+  phase1           — Phase 1 orchestration pipeline
 """
 
-import ast
 import logging
-import os
-from dataclasses import dataclass, field
-from typing import Dict, List, Any, Optional
+from typing import Any, Dict, List, Optional
 
-from typing import TYPE_CHECKING
+from agents.supervisor.types import Requirement, ModuleTask, CompiledPipeline
+from agents.supervisor.code_generation import generate_code as _generate_code_impl
+from agents.supervisor.phase1 import run_phase1 as _run_phase1_impl
+from agents.supervisor.phase1 import generate_code_for_modules as _generate_code_for_modules_impl
 
 logger = logging.getLogger(__name__)
 
-if TYPE_CHECKING:
-    from agents.pipeline import ClaudeCodexMultiAgent
-
-
-@dataclass
-class Requirement:
-    """Structured requirement"""
-    functional_modules: List[str] = field(default_factory=list)
-    non_functional: List[str] = field(default_factory=list)
-    constraints: List[str] = field(default_factory=list)
-    priority: str = "medium"
-    raw_text: str = ""
-
-
-@dataclass
-class ModuleTask:
-    """Module task"""
-    module: str
-    priority: int = 1
-    dependencies: List[str] = field(default_factory=list)
-    context: Dict[str, Any] = field(default_factory=dict)
-
-
-@dataclass
-class CompiledPipeline:
-    """Compiled pipeline configuration"""
-    context_strategies: Dict[str, Any]
-    implementation_order: List[str]
-    fix_templates: Dict[str, Any]
-    quality_gates: List[Dict[str, Any]]
-
+# Re-export types for backward compatibility
+__all__ = [
+    "Requirement",
+    "ModuleTask",
+    "CompiledPipeline",
+    "CodexSupervisor",
+]
 
 class CodexSupervisor:
     """
@@ -61,9 +42,11 @@ class CodexSupervisor:
     Here we define the supervisor's interface contract and decision logic.
     """
 
-    def __init__(self, agents_config: dict):
+    def __init__(self, agents_config: dict) -> None:
         self.agents_config = agents_config
         self.modules = self._load_module_registry()
+
+    # ── Requirement parsing ─────────────────────────────────────
 
     def parse_requirement(self, raw_text: str) -> Requirement:
         """Parse natural-language requirement. In reality done by Codex."""
@@ -81,6 +64,8 @@ class CodexSupervisor:
             tasks.append(task)
         return tasks
 
+    # ── Task dispatch ───────────────────────────────────────────
+
     def dispatch_tasks(self, tasks: List[ModuleTask],
                        compiled_pipeline: CompiledPipeline) -> Dict[str, Any]:
         """Dispatch tasks via Superpowers, using context_strategies for injection."""
@@ -92,6 +77,8 @@ class CodexSupervisor:
                 "context_strategy": strategy,
             }
         return dispatch_config
+
+    # ── Review evaluation ───────────────────────────────────────
 
     def evaluate_review(self, review_results: List[Dict],
                         gate_results: List[Dict]) -> Dict[str, Any]:
@@ -121,13 +108,7 @@ class CodexSupervisor:
             lines.append("")
         return "\n".join(lines)
 
-    def _load_module_registry(self) -> Dict[str, Any]:
-        """Load module registry from agents config."""
-        agents = self.agents_config.get("agents", {})
-        return {
-            name: cfg for name, cfg in agents.items()
-            if cfg.get("role") == "expert"
-        }
+    # ── Code generation (delegates to code_generation module) ──
 
     def generate_code(
         self,
@@ -137,169 +118,10 @@ class CodexSupervisor:
         input_schema: Dict[str, Any] = None,
         timeout: float = 120.0,
     ) -> str:
-        """Generate production-ready Python code using the real LLM. Validates with ast.parse()."""
-        try:
-            from agents.supervisor.agent_executor import ClaudeCodeExecutor
+        """Generate production-ready Python code using the real LLM."""
+        return _generate_code_impl(module_spec, llm_provider, module_name, timeout=timeout)
 
-            executor = ClaudeCodeExecutor(llm_provider=llm_provider)
-            code = executor.generate_code(
-                spec=module_spec, module_name=module_name, timeout=timeout,
-            )
-            return code
-        except (ImportError, RuntimeError) as e:
-            logger.warning("[Supervisor] ClaudeCodeExecutor not available (%s), falling back to inline", e)
-            return self._generate_code_inline(module_spec, llm_provider, module_name, timeout=timeout)
-
-    def _generate_code_inline(
-        self,
-        module_spec: Dict[str, Any],
-        llm_provider,
-        module_name: str,
-        timeout: float = 120.0,
-    ) -> str:
-        """Inline code generation fallback with AST validation + retry + interface check."""
-        import concurrent.futures
-
-        try:
-            components = module_spec.get("components", [])
-            interfaces = module_spec.get("interfaces", [])
-            acceptance_criteria = module_spec.get("acceptance_criteria", [])
-
-            spec_lines = []
-            for comp in components:
-                if isinstance(comp, dict):
-                    spec_lines.append(f'- {comp.get("name", "?")} ({comp.get("type", "?")}): {comp.get("description", "")}')
-                else:
-                    spec_lines.append(f"- {comp}")
-
-            interface_lines = []
-            for iface in interfaces:
-                if isinstance(iface, dict):
-                    interface_lines.append(f'- {iface.get("name", "?")} {iface.get("method", "?")} {iface.get("path", "?")}')
-                else:
-                    interface_lines.append(f"- {iface}")
-
-            criteria_lines = [f"- {c}" for c in acceptance_criteria]
-
-            prompt_parts = [
-                f"You are a senior Python developer. Generate production-ready code for the '{module_name}' module.",
-                "",
-                "## Module Specification",
-                "Components:",
-            ] + spec_lines + [
-                "",
-                "Interfaces:",
-            ] + interface_lines + [
-                "",
-                "Acceptance Criteria:",
-            ] + criteria_lines + [
-                "",
-                "## Requirements",
-                "- Valid, parseable Python 3.12+ code with type hints and docstrings",
-                "- Follow Google Python Style Guide",
-                "- Use FastAPI framework",
-                "- Implement ALL acceptance criteria listed above",
-                "- Include proper error handling and logging",
-                "- Output ONLY the Python code. No markdown fences, no explanation.",
-            ]
-            prompt = "\n".join(prompt_parts)
-
-            system_prompt = (
-                "You are an expert Python code generator. "
-                "Generate complete, runnable Python code. "
-                "Output ONLY raw Python code -- no markdown, no explanation, no code fences."
-            )
-
-            def _call_llm(prompt_text, sys_prompt_text):
-                return llm_provider.complete(
-                    prompt=prompt_text,
-                    system_prompt=sys_prompt_text,
-                    output_format="text",
-                    max_tokens=8192,
-                    temperature=0.2,
-                )
-
-            current_timeout = timeout
-            for attempt in range(1, 3):  # up to 2 attempts
-                try:
-                    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                        future = pool.submit(_call_llm, prompt, system_prompt)
-                        response = future.result(timeout=current_timeout)
-                except concurrent.futures.TimeoutError:
-                    logger.warning("[Supervisor] LLM timeout for %s (attempt %d / %d)",
-                                   module_name, attempt, 2)
-                    if attempt == 1:
-                        current_timeout = min(current_timeout * 2.5, 300.0)
-                        continue
-                    return ""
-                except Exception as exc:
-                    logger.error("[Supervisor] LLM call failed for %s (attempt %d): %s",
-                                module_name, attempt, exc)
-                    return ""
-
-                if not response.success or not response.content:
-                    logger.warning("[Supervisor] LLM generation failed for %s (attempt %d): %s",
-                                   module_name, attempt, response.error)
-                    return ""
-
-                code = response.content.strip()
-                if code.startswith("```"):
-                    parts = code.split("\n", 1)
-                    if len(parts) > 1:
-                        code = parts[1]
-                    else:
-                        code = code[3:]
-                    if code.endswith("```"):
-                        code = code[:-3]
-                    code = code.strip()
-
-                try:
-                    ast.parse(code)
-                except SyntaxError as e:
-                    logger.warning(
-                        "[Supervisor] AST validation failed for %s (attempt %d): %s",
-                        module_name, attempt, e,
-                    )
-                    if attempt == 1:
-                        prompt = (
-                            f"Your previous code had a syntax error:\n"
-                            f"  {e}\n\n"
-                            f"Fix it. Output ONLY corrected Python code "
-                            f"with no markdown fences.\n\n"
-                            f"Original request:\n{prompt}"
-                        )
-                        system_prompt = (
-                            "Fix the syntax error and output ONLY corrected Python code. "
-                            "No markdown, no explanation, no code fences."
-                        )
-                        continue
-                    return ""
-
-                # Interface consistency check
-                missing_names = []
-                code_lower = code.lower()
-                for iface in interfaces:
-                    name = iface.get("name", "") if isinstance(iface, dict) else str(iface)
-                    if name and name.lower() not in code_lower:
-                        missing_names.append(name)
-                if missing_names and attempt == 1:
-                    logger.warning("[Supervisor] Missing interfaces for %s: %s", module_name, missing_names)
-                    prompt = (
-                        f"Your code is missing these required interfaces: {missing_names}\n\n"
-                        f"Add them. Output ONLY corrected Python code.\n\n"
-                        f"Original request:\n{prompt}"
-                    )
-                    continue
-
-                logger.info("[Supervisor] Generated %d lines for %s (attempt %d)",
-                            code.count("\n") + 1, module_name, attempt)
-                return code
-
-            return ""
-
-        except Exception as exc:
-            logger.error("[Supervisor] Code gen error for %s: %s", module_name, exc)
-            return ""
+    # ── Phase 1 pipeline (delegates to phase1 module) ───────────
 
     def run_phase1(
         self,
@@ -310,348 +132,11 @@ class CodexSupervisor:
         backend: Any = None,
         auto_approve: bool = False,
     ) -> Dict[str, Any]:
-        """
-        Phase 1: Requirement decomposition -> Expert analysis -> [Approval Gate] -> Code Generation.
-
-        Steps:
-          1. Identify functional modules
-          2. Dispatch to expert agents in parallel (simulated sequentially here)
-          3. Collect module specs from experts
-          4. Build approval request (module decomposition, confidence, dependencies)
-          5. If auto_approve=False, return approval_request for user review
-          6. If auto_approve=True or after user approval, generate code via ExecutionBackend
-
-        Args:
-            requirement: Structured requirement
-            experts: Dict of {module_name: expert_agent}
-            compiled_pipeline: Compiled pipeline configuration
-            llm_provider: LLM Provider (defaults to DayueAIProvider)
-            backend: ExecutionBackend instance (defaults to ClaudeCodeBackend)
-            auto_approve: If True, skip approval gate (batch mode)
-
-        Returns:
-            {
-                "module_specs": {module_name: spec_dict},
-                "code_artifact": {module_name: code_string},  # empty if awaiting approval
-                "dispatch_config": {module_name: dispatch_info},
-                "approval_request": {  # present when approval needed
-                    "modules": [{name, components_count, interfaces_count, confidence, dependencies}],
-                    "total_components": int,
-                    "total_interfaces": int,
-                    "estimated_tokens": int,
-                },
-                "approved": bool,
-            }
-        """
-        from agents.supervisor.agent_executor import (  # noqa: F401
-            ClaudeCodeExecutor,
-            ExecutionBackend,
-            TaskSpec,
+        """Phase 1: Requirement decomposition -> Expert analysis -> [Approval Gate] -> Code Generation."""
+        return _run_phase1_impl(
+            self, requirement, experts, compiled_pipeline,
+            llm_provider=llm_provider, backend=backend, auto_approve=auto_approve,
         )
-
-        # Use provided backend or create default
-        if backend is None:
-            if llm_provider is None:
-                try:
-                    from tools.llm.anthropic import AnthropicClaudeProvider
-                    llm_provider = AnthropicClaudeProvider()
-                except (ValueError, ImportError) as e:
-                    raise RuntimeError(
-                        f"Failed to initialize LLM provider for code generation: {e}. "
-                        f"Set LLM_API_KEY environment variable or install required dependencies."
-                    ) from e
-
-            from agents.supervisor.agent_executor import ExecutionBackend as _EB
-            # Simple inline backend
-            class _DefaultBackend(_EB):
-                def __init__(self, provider):
-                    self._provider = provider
-                def execute_task(self, task):
-                    from agents.supervisor.agent_executor import TaskResult
-                    code = ClaudeCodeExecutor(self._provider).generate_code(
-                        spec=task.spec, module_name=task.module_name
-                    )
-                    return TaskResult(
-                        module_name=task.module_name,
-                        success=bool(code),
-                        code=code,
-                    )
-                def get_name(self):
-                    return "default"
-
-            backend = _DefaultBackend(llm_provider=llm_provider)
-
-        # Validate backend interface
-        if not isinstance(backend, ExecutionBackend):
-            raise TypeError(
-                f"backend must be an ExecutionBackend instance, got {type(backend).__name__}"
-            )
-
-        # Store llm_provider for conflict resolver (used in code generation)
-        self._llm_provider = llm_provider
-
-        # Computer use settings (can be overridden via env or config)
-        self._computer_use_enabled = os.environ.get("COMPUTER_USE", "1") == "1"
-        self._computer_use_backend = os.environ.get("COMPUTER_USE_BACKEND", "codex")
-        self._computer_use_workdir = os.environ.get("COMPUTER_USE_WORKDIR", ".")
-
-        logger.info("[Supervisor] 使用执行后端: %s", backend.get_name())
-
-        # Step 1: Identify functional modules
-        logger.info("[Supervisor] Phase 1 started -- identifying functional modules")
-        tasks = self.identify_modules(requirement)
-        logger.info("[Supervisor] Identified %d modules: %s", len(tasks), [t.module for t in tasks])
-
-        # Step 2: Dispatch tasks and collect specs
-        dispatch_config = self.dispatch_tasks(tasks, compiled_pipeline)
-        module_specs: Dict[str, Any] = {}
-
-        for task in tasks:
-            module_name = task.module
-            expert = experts.get(module_name)
-
-            if expert is None:
-                logger.warning("[Supervisor] No expert for module '%s', skipping", module_name)
-                continue
-
-            # Build expert input and call process
-            try:
-                from agents.experts import ExpertInput
-                expert_input = ExpertInput(
-                    module_name=module_name,
-                    requirement=requirement.raw_text,
-                    constraints=requirement.constraints,
-                    dependency_interfaces=task.context.get("dependency_interfaces", {}),
-                    global_constraints={},
-                )
-                expert_output = expert.process(expert_input)
-                spec = {
-                    "module_name": expert_output.module_name,
-                    "components": expert_output.components,
-                    "interfaces": expert_output.interfaces,
-                    "acceptance_criteria": expert_output.acceptance_criteria,
-                    "state_machine": expert_output.state_machine,
-                    "confidence": expert_output.confidence,
-                    "reasoning": expert_output.reasoning,
-                }
-                module_specs[module_name] = spec
-                logger.info(
-                    "[Supervisor] Expert '%s' analysis complete: %d components, %d interfaces",
-                    module_name,
-                    len(spec.get("components", [])),
-                    len(spec.get("interfaces", [])),
-                )
-            except Exception as e:
-                logger.error("[Supervisor] Expert '%s' analysis failed: %s", module_name, e)
-
-        # Step 3: Build approval request
-        approval_modules = []
-        total_components = 0
-        total_interfaces = 0
-        for module_name, spec in module_specs.items():
-            comp_count = len(spec.get("components", []))
-            iface_count = len(spec.get("interfaces", []))
-            total_components += comp_count
-            total_interfaces += iface_count
-            deps = self._get_dependencies(module_name)
-            approval_modules.append({
-                "name": module_name,
-                "components_count": comp_count,
-                "interfaces_count": iface_count,
-                "acceptance_criteria_count": len(spec.get("acceptance_criteria", [])),
-                "confidence": spec.get("confidence", 0.0),
-                "dependencies": deps,
-                "reasoning": spec.get("reasoning", ""),
-            })
-
-        # Estimate tokens: ~50 tokens per component/interface, ~20 per acceptance criterion
-        estimated_tokens = total_components * 50 + total_interfaces * 50 + sum(
-            len(spec.get("acceptance_criteria", [])) * 20 for spec in module_specs.values()
-        )
-
-        approval_request = {
-            "modules": approval_modules,
-            "total_components": total_components,
-            "total_interfaces": total_interfaces,
-            "estimated_tokens": estimated_tokens,
-            "backend": backend.get_name(),
-        }
-
-        # Step 4: Auto-approve or pause for user review
-        if auto_approve:
-            logger.info("[Supervisor] Auto-approval enabled, proceeding to code generation")
-            code_artifact = self._generate_code_for_modules(module_specs, backend, requirement)
-            return {
-                "module_specs": module_specs,
-                "code_artifact": code_artifact,
-                "dispatch_config": dispatch_config,
-                "approval_request": approval_request,
-                "approved": True,
-            }
-
-        logger.info(
-            "[Supervisor] Phase 1 analysis complete. Awaiting user approval (%d modules, ~%d tokens)",
-            len(approval_modules), estimated_tokens,
-        )
-        return {
-            "module_specs": module_specs,
-            "code_artifact": {},
-            "dispatch_config": dispatch_config,
-            "approval_request": approval_request,
-            "approved": False,
-        }
-
-    def _generate_code_for_modules(
-        self,
-        module_specs: Dict[str, Any],
-        backend: Any,
-        requirement: Requirement,
-        enable_conflict_resolution: bool = True,
-    ) -> Dict[str, str]:
-        """
-        Generate code for all modules using ExecutionBackend.
-
-        Args:
-            module_specs: {module_name: spec_dict}
-            backend: ExecutionBackend instance
-            requirement: Original requirement (for context)
-            enable_conflict_resolution: If True, detect and resolve file-level conflicts
-
-        Returns:
-            {module_name: code_string} — if conflicts resolved, some module names
-            may share the same code (from merged files)
-        """
-        from agents.supervisor.agent_executor import TaskSpec, MergeCoordinator
-
-        code_artifact: Dict[str, str] = {}
-        logger.info("[Supervisor] Starting real code generation for %d modules...", len(module_specs))
-
-        # Initialize conflict coordinator
-        coordinator = MergeCoordinator(
-            llm_provider=getattr(self, '_llm_provider', None),
-        ) if enable_conflict_resolution else None
-
-        # Pre-register file targets based on module specs
-        if coordinator:
-            for module_name, spec in module_specs.items():
-                # Each module generates its own primary file
-                file_path = self._module_to_file_path(module_name)
-                coordinator.register_target(module_name, file_path, is_primary=True)
-
-                # Register shared files from interfaces
-                for iface in spec.get("interfaces", []):
-                    if isinstance(iface, dict) and iface.get("shared_file"):
-                        shared_path = iface["shared_file"]
-                        coordinator.register_target(module_name, shared_path, is_primary=False)
-
-        # Generate code for each module
-        for module_name, spec in module_specs.items():
-            logger.info("[Supervisor] Generating code for module '%s'...", module_name)
-
-            task = TaskSpec(
-                module_name=module_name,
-                spec=spec,
-                requirement=requirement.raw_text,
-                constraints=requirement.constraints,
-                context={},
-            )
-            result = backend.execute_task(task)
-
-            if result.success and result.code:
-                code_artifact[module_name] = result.code
-                lines = result.code.count("\n") + 1
-                logger.info("[Supervisor] Module '%s' code generated: %d lines", module_name, lines)
-
-                # Register generation with conflict detector
-                if coordinator:
-                    file_path = self._module_to_file_path(module_name)
-                    coordinator.register_generation(
-                        file_path=file_path,
-                        module_name=module_name,
-                        code=result.code,
-                        success=True,
-                    )
-            else:
-                logger.warning("[Supervisor] Module '%s' code generation failed: %s",
-                               module_name, result.error or "Unknown error")
-                code_artifact[module_name] = ""
-
-                if coordinator:
-                    file_path = self._module_to_file_path(module_name)
-                    coordinator.register_generation(
-                        file_path=file_path,
-                        module_name=module_name,
-                        code="",
-                        success=False,
-                        error=result.error,
-                    )
-
-        # Detect and resolve conflicts
-        conflict_report = None
-        if coordinator and len(module_specs) > 1:
-            logger.info("[Supervisor] Checking for file-level conflicts...")
-            final_files = coordinator.resolve_all()
-            conflict_report = coordinator.get_resolution_report()
-
-            if conflict_report["resolutions"]:
-                logger.info(
-                    "[Supervisor] Conflict resolution report: %s",
-                    conflict_report["resolutions"],
-                )
-                # Map resolved files back to modules
-                for module_name in module_specs:
-                    file_path = self._module_to_file_path(module_name)
-                    if file_path in final_files:
-                        code_artifact[module_name] = final_files[file_path]
-
-        # Log code generation statistics
-        total_lines = 0
-        logger.info("Phase 1 -- Code Generation Statistics")
-        logger.info("=" * 60)
-        for module_name, code in code_artifact.items():
-            lines = code.count("\n") + 1 if code else 0
-            status = "OK" if code else "FAIL"
-            logger.info("  [%s] %s: %d lines", status, module_name, lines)
-            total_lines += lines
-        success_count = len([c for c in code_artifact.values() if c])
-        logger.info("  --------------------------------")
-        logger.info("  Total: %d lines (%d/%d succeeded)", total_lines, success_count, len(code_artifact))
-        logger.info("=" * 60)
-
-        # Store conflict report for caller
-        self._last_conflict_report = conflict_report
-
-        # ── Computer Use: Post-generation verification ──
-        computer_use_report = None
-        if enable_conflict_resolution and self._computer_use_enabled:
-            from agents.supervisor.agent_executor import ComputerUseOrchestrator, create_computer_use_backend
-            backend = create_computer_use_backend(
-                self._computer_use_backend or "codex",
-                workdir=self._computer_use_workdir or ".",
-            )
-            if backend.available:
-                logger.info("[Supervisor] Running computer use verification (backend=%s)...", backend.name)
-                orchestrator = ComputerUseOrchestrator(
-                    backend, llm_provider=self._llm_provider)
-                computer_use_report = orchestrator.verify_and_fix(code_artifact)
-                self._last_computer_use_report = computer_use_report
-
-                if computer_use_report.verified:
-                    logger.info("[ComputerUse] 验证通过 ✓")
-                else:
-                    logger.warning("[ComputerUse] 验证失败: %s", computer_use_report.output)
-
-        return code_artifact
-
-    def get_last_conflict_report(self) -> Optional[Dict]:
-        """Get the conflict report from the last code generation run."""
-        return getattr(self, '_last_conflict_report', None)
-
-    @staticmethod
-    def _module_to_file_path(module_name: str) -> str:
-        """Convert a module name to its target file path."""
-        # Convention: module_name -> src/{module_name}/service.py
-        return f"src/{module_name}/service.py"
 
     def approve_and_generate(
         self,
@@ -659,18 +144,18 @@ class CodexSupervisor:
         backend: Any,
         requirement: Requirement,
     ) -> Dict[str, str]:
-        """
-        After user approval, trigger code generation.
+        """After user approval, trigger code generation."""
+        return _generate_code_for_modules_impl(self, module_specs, backend, requirement)
 
-        This is the entry point for the approval callback — separates the
-        analysis/review cycle from code generation so the user can inspect
-        the decomposition before committing LLM tokens.
-        """
-        return self._generate_code_for_modules(module_specs, backend, requirement)
+    # ── Helpers ─────────────────────────────────────────────────
 
-    def get_last_computer_use_report(self):
-        """Get the computer use report from the last code generation run."""
-        return getattr(self, '_last_computer_use_report', None)
+    def _load_module_registry(self) -> Dict[str, Any]:
+        """Load module registry from agents config."""
+        agents = self.agents_config.get("agents", {})
+        return {
+            name: cfg for name, cfg in agents.items()
+            if cfg.get("role") == "expert"
+        }
 
     def _get_dependencies(self, module: str) -> List[str]:
         """Get dependencies for a module."""
@@ -678,3 +163,11 @@ class CodexSupervisor:
             if cfg.get("module") == module:
                 return cfg.get("dependencies", [])
         return []
+
+    def get_last_conflict_report(self) -> Optional[Dict]:
+        """Get the conflict report from the last code generation run."""
+        return getattr(self, '_last_conflict_report', None)
+
+    def get_last_computer_use_report(self) -> Any:
+        """Get the computer use report from the last code generation run."""
+        return getattr(self, '_last_computer_use_report', None)

@@ -1,4 +1,4 @@
-# 🧠 Claude-Codex Multi-Agent Pipeline (CC)
+# 🧠 KodeForge (CC)
 
 **Schema-first multi-agent development pipeline with RAG dual-engine, skill self-learning, and GRPO online optimization.**
 

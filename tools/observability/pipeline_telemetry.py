@@ -23,7 +23,7 @@ import uuid
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
+from typing import Any, Iterator
 
 
 # ── Tracer ──────────────────────────────────────────────────────────────────
@@ -52,7 +52,7 @@ class Tracer:
             tracer.finish_span(span)
     """
 
-    def __init__(self, name: str = "request"):
+    def __init__(self, name: str = "request") -> None:
         self.trace_id = uuid.uuid4().hex[:8]
         self.name = name
         self.spans: list[dict] = []
@@ -60,7 +60,7 @@ class Tracer:
         self._stack: list[str] = []
 
     @contextmanager
-    def span_ctx(self, name: str, **attributes):
+    def span_ctx(self, name: str, **attributes) -> Iterator:
         """
         创建嵌套 span 的上下文管理器。
 
@@ -78,7 +78,7 @@ class Tracer:
         finally:
             self.finish_span(span)
 
-    def span(self, name: str, **attributes):
+    def span(self, name: str, **attributes) -> Any:
         """
         创建嵌套 span 并返回 span dict。
 
@@ -220,7 +220,7 @@ class AlertManager:
         alerts.check()  # 手动检查
     """
 
-    def __init__(self, tracer: Tracer = None):
+    def __init__(self, tracer: Tracer = None) -> None:
         self.tracer = tracer or Tracer("global")
         self._rules: list[AlertRule] = []
         self._fired: list[dict] = []
@@ -314,7 +314,7 @@ class PipelineMetrics:
     per_agent_metrics: dict = field(default_factory=dict)
     per_tool_metrics: dict = field(default_factory=dict)
 
-    def record_agent_call(self, agent_id: str, tokens: int = 0, latency_ms: float = 0):
+    def record_agent_call(self, agent_id: str, tokens: int = 0, latency_ms: float = 0) -> None:
         """记录 Agent 调用"""
         self.total_steps += 1
         self.total_tokens += tokens
@@ -324,7 +324,7 @@ class PipelineMetrics:
         self.per_agent_metrics[agent_id]["calls"] += 1
         self.per_agent_metrics[agent_id]["tokens"] += tokens
 
-    def record_tool_call(self, tool_name: str, tokens: int = 0, latency_ms: float = 0):
+    def record_tool_call(self, tool_name: str, tokens: int = 0, latency_ms: float = 0) -> None:
         """记录工具调用"""
         self.total_tool_calls += 1
         self.total_tokens += tokens

@@ -37,7 +37,7 @@ class LongTermMemory:
         context = mem.context_for("user_1")
     """
 
-    def __init__(self, persist_path: str = "data/memory_store.json"):
+    def __init__(self, persist_path: str = "data/memory_store.json") -> None:
         self.persist_path = Path(persist_path) if persist_path else None
         self.store: dict[str, dict] = {}
         if self.persist_path and self.persist_path.exists():

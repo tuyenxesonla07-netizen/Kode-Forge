@@ -30,7 +30,7 @@ import re
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -379,109 +379,9 @@ class SkillLearner:
 
     @staticmethod
     def _tokenize(text: str) -> list[str]:
-        """Language-aware tokenization with jieba for Chinese + English fallback."""
-        try:
-            import jieba
-
-            tokens = list(jieba.cut(text, cut_all=False))
-            # Also extract English words from mixed tokens
-            expanded: list[str] = []
-            for tok in tokens:
-                expanded.extend(w for w in tok.lower().split() if w)
-            return expanded if expanded else text.lower().split()
-        except ImportError:
-            # Fallback: split on non-alphanumeric
-            return re.findall(r"[a-z0-9]+", text.lower())
-
-        # Update index
-        index = {
-            "skills": list(self._skills.keys()),
-            "updated_at": datetime.now().isoformat(timespec="seconds"),
-        }
-        with open(self._index_path, "w", encoding="utf-8") as f:
-            json.dump(index, f, ensure_ascii=False, indent=2)
-
-    # ---- content generation -----------------------------------------------
-
-    def _generate_skill_content(
-        self,
-        task: str,
-        trajectory: list[dict[str, Any]],
-        task_type: str,
-    ) -> str:
-        """Generate SKILL.md content from a trajectory."""
-        lines: list[str] = []
-        lines.append(f"# Skill: {self._generate_skill_name(task, task_type)}")
-        lines.append("")
-        lines.append(f"## Task Type: {task_type}")
-        lines.append("")
-        lines.append("## Description")
-        lines.append(f"This skill was extracted from the successful execution of: {task}")
-        lines.append("")
-        lines.append("## Steps")
-
-        for i, step in enumerate(trajectory, 1):
-            action = step.get("action", "unknown")
-            detail = step.get("detail", "")
-            lines.append(f"{i}. {action}" + (f" — {detail}" if detail else ""))
-
-        lines.append("")
-        lines.append("## Key Patterns")
-        actions = [step.get("action", "") for step in trajectory]
-        unique_actions = list(dict.fromkeys(actions))  # preserve order, deduplicate
-        for action in unique_actions:
-            if action:
-                lines.append(f"- {action}")
-
-        lines.append("")
-        lines.append("## Usage")
-        lines.append("Apply this skill when encountering similar tasks. Adapt the steps to the specific context.")
-        lines.append("")
-
-        return "\n".join(lines)
-
-    def _generate_skill_name(self, task: str, task_type: str) -> str:
-        """Generate a filesystem-safe skill name from a task."""
-        # Take first 5 meaningful words
-        words = re.findall(r"\w+", task.lower())[:5]
-        base = "_".join(words) if words else task_type
-        # Add type prefix for namesafety
-        name = f"{task_type}_{base}" if task_type != "general" else base
-        # Sanitize
-        name = re.sub(r"[^a-z0-9_]", "_", name)
-        return name[:60]  # cap length
-
-    def _extract_keywords(self, task: str, trajectory: list[dict[str, Any]]) -> list[str]:
-        """Extract keywords from task description and trajectory."""
-        # From task description
-        tokens = set(self._tokenize(task))
-
-        # From trajectory actions
-        for step in trajectory:
-            action = step.get("action", "")
-            tokens.update(self._tokenize(action))
-            detail = step.get("detail", "")
-            if detail:
-                tokens.update(self._tokenize(detail))
-
-        # Filter: keep tokens with >1 char (Chinese) or >2 chars (English)
-        return sorted(t for t in tokens if len(t) > 1)
-
-    @staticmethod
-    def _tokenize(text: str) -> list[str]:
-        """Language-aware tokenization with jieba for Chinese + English fallback."""
-        try:
-            import jieba
-
-            tokens = list(jieba.cut(text, cut_all=False))
-            # Also extract English words from mixed tokens
-            expanded: list[str] = []
-            for tok in tokens:
-                expanded.extend(w for w in tok.lower().split() if w)
-            return expanded if expanded else text.lower().split()
-        except ImportError:
-            # Fallback: split on non-alphanumeric
-            return re.findall(r"[a-z0-9]+", text.lower())
+        """Language-aware tokenizer — delegates to pluggable strategy."""
+        from tools.rag.tokenizer import tokenize
+        return tokenize(text)
 
 
 def _bigrams(text: str) -> set[str]:

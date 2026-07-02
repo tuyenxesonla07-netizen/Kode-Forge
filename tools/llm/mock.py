@@ -166,7 +166,7 @@ class MockLLMProvider(LLMProvider):
     支持自定义响应注入。
     """
 
-    def __init__(self, custom_responses: Dict = None, default_confidence: float = 0.85):
+    def __init__(self, custom_responses: Dict = None, default_confidence: float = 0.85) -> None:
         self.custom_responses = custom_responses or {}
         self.default_confidence = default_confidence
         self._call_history: List[Dict] = []
@@ -226,6 +226,6 @@ class MockLLMProvider(LLMProvider):
         """获取调用历史（用于测试验证）"""
         return list(self._call_history)
 
-    def clear_history(self):
+    def clear_history(self) -> None:
         """清空调用历史"""
         self._call_history.clear()

@@ -316,7 +316,7 @@ class ModelSwitcher:
         """
         self._fallback_chain = chain
 
-    def create_provider(self, **kwargs: Any):
+    def create_provider(self, **kwargs: Any) -> Any:
         """Create an LLM provider instance based on current configuration.
 
         Auto-reads create_llm_provider.

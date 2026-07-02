@@ -45,7 +45,7 @@ class MemoryStore(ABC):
 class InMemoryStore(MemoryStore):
     """内存存储（开发/测试用）"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._data: dict[str, dict] = {}
 
     def get(self, session_id: str) -> Optional[dict]:
@@ -67,7 +67,7 @@ class InMemoryStore(MemoryStore):
 class JSONFileStore(MemoryStore):
     """JSON 文件存储（生产单机版）"""
 
-    def __init__(self, persist_path: str = "data/memory_store.json"):
+    def __init__(self, persist_path: str = "data/memory_store.json") -> None:
         self.persist_path = Path(persist_path)
         self._data: dict[str, dict] = {}
         self._load()

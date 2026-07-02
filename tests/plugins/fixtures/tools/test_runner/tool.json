@@ -1,0 +1,25 @@
+{
+    "name": "test_runner",
+    "namespace": "code_quality",
+    "description": "Run unit tests and return results",
+    "version": "1.0.0",
+    "risk_level": "medium",
+    "requires_auth": false,
+    "requires_approval": true,
+    "idempotent": true,
+    "handler": "tests.plugins.fixtures.tools.test_runner.handler:run_tests",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "test_path": {"type": "string"}
+        },
+        "required": ["test_path"]
+    },
+    "output_schema": {
+        "type": "object",
+        "properties": {
+            "passed": {"type": "integer"},
+            "failed": {"type": "integer"}
+        }
+    }
+}

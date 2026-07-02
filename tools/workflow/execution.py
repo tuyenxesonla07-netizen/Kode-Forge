@@ -21,13 +21,11 @@ from typing import Any, Callable, List, Optional
 
 logger = logging.getLogger(__name__)
 
-
 # ---------------------------------------------------------------------------
 # RecoveryManager + RetryPolicy + RecoveryResult
 # ---------------------------------------------------------------------------
 
 from dataclasses import dataclass, field
-
 
 @dataclass
 class RetryPolicy:
@@ -54,7 +52,6 @@ class RetryPolicy:
         """判断异常是否可重试"""
         return isinstance(exception, self.retryable_exceptions)
 
-
 @dataclass
 class RecoveryResult:
     """恢复操作结果"""
@@ -64,7 +61,6 @@ class RecoveryResult:
     attempts: int = 0
     total_delay: float = 0.0
     final_error: str = ""
-
 
 class RecoveryManager:
     """
@@ -81,7 +77,7 @@ class RecoveryManager:
         policy: RetryPolicy = None,
         degrade_fn: Callable = None,
         human_fn: Callable = None,
-    ):
+    ) -> None:
         self.policy = policy or RetryPolicy()
         self.degrade_fn = degrade_fn
         self.human_fn = human_fn
@@ -180,7 +176,6 @@ class RecoveryManager:
                     time.sleep(delay * (2 ** attempt))
         raise last_error
 
-
 # ---------------------------------------------------------------------------
 # QualityLoop + QualityLoopResult
 # ---------------------------------------------------------------------------
@@ -193,7 +188,6 @@ class QualityLoopResult:
     iterations: int                  # 实际迭代次数
     converged: bool                  # 是否收敛
     history: List[dict]              # 每轮的历史记录
-
 
 class QualityLoop:
     """
@@ -210,7 +204,7 @@ class QualityLoop:
         max_iterations: int = 3,
         quality_threshold: float = 0.8,
         convergence_detector = None,
-    ):
+    ) -> None:
         self.max_iterations = max_iterations
         self.quality_threshold = quality_threshold
 
@@ -232,7 +226,7 @@ class QualityLoop:
         context: dict = None,
     ) -> QualityLoopResult:
         """执行节点 → 评估 → 修复循环"""
-        from tools.quality.quality_evaluator import ReviewResult, QualityReport
+        from tools.quality.quality_evaluator import QualityReport
 
         context = context or {}
         history: List[dict] = []
@@ -307,7 +301,7 @@ class QualityLoop:
             history=history,
         )
 
-    def _review_output(self, code: str, node: Any, context: dict):
+    def _review_output(self, code: str, node: Any, context: dict) -> Any:
         """将 LLM 输出转为 ReviewResult"""
         from tools.quality.quality_evaluator import ReviewResult
 
@@ -431,7 +425,6 @@ The following issues were detected in the generated code. Please fix ALL of them
 
         return await llm_node.execute(inputs)
 
-
 # ---------------------------------------------------------------------------
 # ResultAggregator + AgentResult
 # ---------------------------------------------------------------------------
@@ -449,7 +442,6 @@ class AgentResult:
     error: str = ""
     metadata: dict = field(default_factory=dict)
 
-
 class ResultAggregator:
     """
     子代理结果汇总器。
@@ -463,7 +455,7 @@ class ResultAggregator:
         conflicts = agg.detect_conflicts()
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._results: list[AgentResult] = []
 
     def add(self, result: AgentResult) -> None:
@@ -551,7 +543,6 @@ class ResultAggregator:
     def __len__(self) -> int:
         return len(self._results)
 
-
 # ---------------------------------------------------------------------------
 # CircuitBreaker
 # ---------------------------------------------------------------------------
@@ -561,11 +552,9 @@ class CircuitState(str, Enum):
     OPEN = "open"
     HALF_OPEN = "half_open"
 
-
 class CircuitBreakerOpenError(Exception):
     """Circuit breaker 断路异常"""
     pass
-
 
 class CircuitBreaker:
     """
@@ -587,7 +576,7 @@ class CircuitBreaker:
         failure_threshold: int = 5,
         recovery_timeout: float = 30.0,
         success_threshold: int = 1,
-    ):
+    ) -> None:
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
         self.success_threshold = success_threshold

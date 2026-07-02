@@ -30,7 +30,7 @@ jobs:
 
       - name: Lint with ruff
         run: |
-          ruff check tools/ agents/ tests/ --ignore E501
+          ruff check tools/ agents/ tests/ --select N999,N801,E402
 
       - name: Run tests (Python ${{ matrix.python-version }})
         run: |

@@ -14,7 +14,6 @@ import logging
 from dataclasses import dataclass, field
 from typing import Any, Sequence
 
-import numpy as np
 
 from tools.rag.rag_types import RAGConfig, Document
 from tools.rag.cognitive.rag_cognitive import IntentClassifier, IntentResult, IntentRouter, RetrievalStrategy, UserModel

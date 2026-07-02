@@ -1,0 +1,14 @@
+{
+    "name": "code_reviewer",
+    "display_name": "Code Reviewer",
+    "description": "Review code quality and suggest improvements",
+    "version": "1.0.0",
+    "intents": ["quality_check", "code_review"],
+    "tools": ["run_quality_check", "ast_validator"],
+    "entry_agent": "expert_code_reviewer",
+    "risk_level": "low",
+    "prompt_paths": {
+        "system": "prompts/system.md"
+    },
+    "workflow_path": ""
+}

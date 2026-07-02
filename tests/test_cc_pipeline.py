@@ -77,20 +77,20 @@ class TestLayer2Pipeline:
 
 
 class TestLayer3BackwardCompat:
-    """Layer 3: Full ClaudeCodexMultiAgent still works."""
+    """Layer 3: Full KodeForge still works."""
 
     def test_import_from_init(self):
-        from __init__ import ClaudeCodexMultiAgent
-        assert ClaudeCodexMultiAgent is not None
+        from __init__ import KodeForge
+        assert KodeForge is not None
 
     def test_create_instance(self):
-        from __init__ import ClaudeCodexMultiAgent
-        pipeline = ClaudeCodexMultiAgent(llm_backend="mock")
+        from __init__ import KodeForge
+        pipeline = KodeForge(llm_backend="mock")
         assert pipeline is not None
 
     def test_run_full_pipeline(self):
-        from __init__ import ClaudeCodexMultiAgent
-        pipeline = ClaudeCodexMultiAgent(llm_backend="mock")
+        from __init__ import KodeForge
+        pipeline = KodeForge(llm_backend="mock")
         result = pipeline.run_full_pipeline("Build auth module")
         assert "status" in result
 

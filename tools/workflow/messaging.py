@@ -122,7 +122,7 @@ class Message:
 class MessageBus:
     """消息总线 — Agent 间通信的唯一通道"""
 
-    def __init__(self, max_history: int = 1000):
+    def __init__(self, max_history: int = 1000) -> None:
         self._queues: Dict[str, deque] = defaultdict(deque)
         self._subscribers: Dict[str, List[Callable]] = defaultdict(list)
         self._history: deque = deque(maxlen=max_history)
@@ -201,7 +201,7 @@ class MessageBus:
         """获取所有活跃 topic"""
         return list(self._subscribers.keys())
 
-    def clear(self):
+    def clear(self) -> None:
         """清空所有队列和历史"""
         with self._lock:
             self._queues.clear()

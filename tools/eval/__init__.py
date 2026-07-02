@@ -30,7 +30,7 @@ from tools.eval.report import EvalReport
 __all__ = ["EVAL_CASES", "BehavioralCheckResult", "EvalRunner", "EvalReport"]
 
 
-def _cli():
+def _cli() -> None:
     """CLI entry point: python -m tools.eval"""
     import argparse
     import sys

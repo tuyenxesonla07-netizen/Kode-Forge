@@ -13,7 +13,7 @@
 
 import hashlib
 import logging
-from typing import List, Optional
+from typing import Any, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class APIKeyValidator:
         @app.get("/api/v1/protected", dependencies=[Depends(validator)])
     """
 
-    def __init__(self, api_keys: Optional[List[str]] = None):
+    def __init__(self, api_keys: Optional[List[str]] = None) -> None:
         self.allowed_hashes: List[str] = api_keys or []
 
     async def __call__(self, x_api_key: Optional[str] = None) -> bool:
@@ -118,11 +118,11 @@ class AuthMiddleware:
     应用于路由之前，在 SecurityHeadersMiddleware 之后。
     """
 
-    def __init__(self, app, api_keys: Optional[List[str]] = None):
+    def __init__(self, app, api_keys: Optional[List[str]] = None) -> None:
         self.app = app
         self.allowed_hashes: List[str] = api_keys or []
 
-    async def __call__(self, scope, receive, send):
+    async def __call__(self, scope, receive, send) -> Any:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return

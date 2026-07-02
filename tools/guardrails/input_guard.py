@@ -89,7 +89,7 @@ class InputGuard:
             safe_text = result.text
     """
 
-    def __init__(self, max_length: int = 5000):
+    def __init__(self, max_length: int = 5000) -> None:
         self.max_length = max_length
         self.blocked_count = 0
 

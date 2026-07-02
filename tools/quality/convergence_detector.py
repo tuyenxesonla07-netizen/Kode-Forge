@@ -24,7 +24,7 @@ class ConvergenceResult:
 class ConvergenceDetector:
     """收敛检测器"""
 
-    def __init__(self, max_iterations: int = 3, min_improvement: float = 0.02):
+    def __init__(self, max_iterations: int = 3, min_improvement: float = 0.02) -> None:
         self.max_iterations = max_iterations
         self.min_improvement = min_improvement  # 最小改进幅度
         self._score_history: List[float] = []
@@ -89,6 +89,6 @@ class ConvergenceDetector:
         """获取评分历史"""
         return list(self._score_history)
 
-    def reset(self):
+    def reset(self) -> None:
         """重置检测器"""
         self._score_history.clear()

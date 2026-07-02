@@ -27,7 +27,7 @@ class ModuleRequirement:
 class RequirementStore:
     """需求上下文存储"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         self._store: Dict[str, ModuleRequirement] = {}
 
     def put(self, module: str, requirement: ModuleRequirement) -> None:
@@ -90,7 +90,7 @@ class RequirementStore:
         sorted_reqs = sorted(self._store.items(), key=lambda x: x[1].priority)
         return [name for name, _ in sorted_reqs]
 
-    def clear(self):
+    def clear(self) -> None:
         """清空存储"""
         self._store.clear()
 

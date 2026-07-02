@@ -2,7 +2,7 @@
 
 import asyncio
 import pytest
-from tools.server.orchestrator import PipelineOrchestrator, PipelineEvent
+from tools.server.pipeline_orchestrator import PipelineOrchestrator, PipelineEvent
 
 
 class TestPipelineEvent:

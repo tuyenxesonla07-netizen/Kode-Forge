@@ -24,7 +24,7 @@ class Message:
     timestamp: str = ""
     metadata: dict = field(default_factory=dict)
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         if not self.timestamp:
             self.timestamp = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
@@ -59,7 +59,7 @@ class ShortTermMemory:
         r"API-\w+",              # 接口号
     ]
 
-    def __init__(self, window: int = 12):
+    def __init__(self, window: int = 12) -> None:
         self.window = window
         self.messages: list[Message] = []
         self.summary: str = ""

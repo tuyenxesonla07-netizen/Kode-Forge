@@ -12,10 +12,7 @@ Provides:
 
 from __future__ import annotations
 
-import json
-import logging
 import re
-import threading
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -377,21 +374,10 @@ class IntentRouter:
 # Internal helpers
 # ---------------------------------------------------------------------------
 
-_TOKEN_RE = re.compile(r"\w+", re.UNICODE)
-
-
 def _tokenize(text: str) -> list[str]:
-    """Language-aware tokenizer with jieba for Chinese text."""
-    try:
-        import jieba
-        tokens = list(jieba.cut(text, cut_all=False))
-        expanded: list[str] = []
-        for tok in tokens:
-            sub = tok.lower().split()
-            expanded.extend(t for t in sub if t)
-        return expanded if expanded else text.lower().split()
-    except ImportError:
-        return _TOKEN_RE.findall(text.lower())
+    """Language-aware tokenizer — delegates to pluggable strategy."""
+    from tools.rag.tokenizer import tokenize
+    return tokenize(text)
 
 
 def _extract_entities(text: str) -> list[tuple[str, str]]:

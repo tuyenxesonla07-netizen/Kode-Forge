@@ -24,7 +24,6 @@ import logging
 import os
 import re
 import time
-from typing import Optional
 
 from tools.llm.base import LLMProvider, LLMResponse
 
@@ -50,7 +49,6 @@ _OPENAI_COMPATIBLE_DEFAULTS = {
 
 _GEMINI_DEFAULT_MODEL = "gemini-2.0-flash"
 
-
 def _clean_json(text: str) -> str:
     """Strip markdown fences and whitespace from JSON text."""
     text = text.strip()
@@ -58,7 +56,6 @@ def _clean_json(text: str) -> str:
         text = re.sub(r"^```(?:json)?\s*\n?", "", text)
         text = re.sub(r"\n?```\s*$", "", text)
     return text
-
 
 def _should_retry(exception: Exception) -> bool:
     """Check if an exception is retryable."""
@@ -70,6 +67,20 @@ def _should_retry(exception: Exception) -> bool:
         return True
     return False
 
+
+def _mask_error(exc: Exception) -> str:
+    """Strip sensitive details from 401/403 errors before they reach user output."""
+    status_code = getattr(getattr(exc, "response", None), "status_code", None)
+    if status_code == 401:
+        return "LLM provider returned 401 — check your API key / token."
+    if status_code == 403:
+        return "LLM provider returned 403 — key may lack permission for this model."
+    # Fallback for SDKs that expose .status_code directly
+    if getattr(exc, "status_code", None) == 401:
+        return "LLM provider returned 401 — check your API key / token."
+    if getattr(exc, "status_code", None) == 403:
+        return "LLM provider returned 403 — key may lack permission for this model."
+    return str(exc)
 
 # ---------------------------------------------------------------------------
 # OpenAI-compatible provider
@@ -111,7 +122,7 @@ class OpenAICompatibleProvider(LLMProvider):
         backend: str = "openai",
         max_tokens: int = 4096,
         timeout: float = None,
-    ):
+    ) -> None:
         # Resolve API key
         api_key = api_key or os.environ.get("OPENAI_API_KEY")
         if not api_key:
@@ -237,7 +248,7 @@ class OpenAICompatibleProvider(LLMProvider):
         return LLMResponse(
             content="",
             success=False,
-            error=str(last_error),
+            error=_mask_error(last_error),
             model=self._model,
         )
 
@@ -257,7 +268,6 @@ class OpenAICompatibleProvider(LLMProvider):
         return await asyncio.to_thread(
             self.complete, prompt, system_prompt, output_format, max_tokens, temperature
         )
-
 
 # ---------------------------------------------------------------------------
 # Google Gemini provider
@@ -280,7 +290,7 @@ class GeminiProvider(LLMProvider):
         model: str = None,
         max_tokens: int = 4096,
         timeout: float = None,
-    ):
+    ) -> None:
         # Resolve API key
         api_key = api_key or os.environ.get("GEMINI_API_KEY")
         if not api_key:
@@ -406,7 +416,7 @@ class GeminiProvider(LLMProvider):
         return LLMResponse(
             content="",
             success=False,
-            error=str(last_error),
+            error=_mask_error(last_error),
             model=self._model,
         )
 

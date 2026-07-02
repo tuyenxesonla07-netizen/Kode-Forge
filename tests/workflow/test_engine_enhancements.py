@@ -24,7 +24,7 @@ class TestWorkflowEngineEnhancements:
             "edges": [],
         })
         run_id = await engine.execute_async("wf-ckpt", {"input": "test"})
-        await asyncio.sleep(0.1)
+        await engine.wait_for_run(run_id)
 
         path = engine.save_checkpoint(run_id)
         assert os.path.exists(path)
@@ -61,8 +61,7 @@ class TestWorkflowEngineEnhancements:
         })
         run_id = await engine.execute_async("wf-perm", {"input": "test"},
                                              context={"allowed_permissions": ["read", "write"]})
-        await asyncio.sleep(0.1)
-        result = engine.get_run_result(run_id)
+        result = await engine.wait_for_run(run_id)
         assert result.status == "success"
 
     @pytest.mark.asyncio
@@ -78,6 +77,5 @@ class TestWorkflowEngineEnhancements:
             "edges": [],
         })
         run_id = await engine.execute_async("wf-idem", {"input": "test"})
-        await asyncio.sleep(0.1)
-        result = engine.get_run_result(run_id)
+        result = await engine.wait_for_run(run_id)
         assert result.status == "success"

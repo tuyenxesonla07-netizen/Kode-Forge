@@ -30,7 +30,7 @@ class PromptTemplate:
 class PromptTemplateGenerator:
     """从所有模块的 output_schema 自动生成 Prompt 模板"""
 
-    def __init__(self, global_constraints: Optional[Dict] = None):
+    def __init__(self, global_constraints: Optional[Dict] = None) -> None:
         self.global_constraints = global_constraints or {
             "language": "Python 3.12",
             "framework": "FastAPI",

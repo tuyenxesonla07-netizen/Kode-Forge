@@ -25,7 +25,7 @@ class InterfaceDef:
 class InterfaceStore:
     """接口定义存储"""
 
-    def __init__(self):
+    def __init__(self) -> None:
         # 结构: { module_name: { interface_name: InterfaceDef } }
         self._store: Dict[str, Dict[str, InterfaceDef]] = {}
 
@@ -88,7 +88,7 @@ class InterfaceStore:
                 result[name] = self._store[name]
         return result
 
-    def clear(self):
+    def clear(self) -> None:
         """清空存储"""
         self._store.clear()
 

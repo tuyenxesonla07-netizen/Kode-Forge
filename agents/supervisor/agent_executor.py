@@ -57,7 +57,7 @@ class ClaudeCodeExecutor:
         llm_provider: Any,
         max_tokens: int = 8192,
         temperature: float = 0.2,
-    ):
+    ) -> None:
         self._provider = llm_provider
         self._max_tokens = max_tokens
         self._temperature = temperature
@@ -181,12 +181,12 @@ class ClaudeCodeExecutor:
     ) -> Any:
         """Call provider.complete with a hard timeout.
 
-        Uses asyncio.wait_for when possible, otherwise falls back to
-        threading-based timeout.
+        Uses asyncio.wait_for + asyncio.to_thread for non-blocking timeout
+        control — consistent with the async-first architecture.
         """
-        import concurrent.futures
+        import asyncio
 
-        def _call():
+        def _call() -> Any:
             return self._provider.complete(
                 prompt=prompt,
                 system_prompt=system_prompt,
@@ -196,14 +196,13 @@ class ClaudeCodeExecutor:
                 **kwargs,
             )
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-            future = pool.submit(_call)
-            try:
-                return future.result(timeout=timeout)
-            except concurrent.futures.TimeoutError:
-                raise TimeoutError(
-                    f"LLM call exceeded {timeout}s timeout"
-                )
+        async def _async_call() -> Any:
+            return await asyncio.wait_for(
+                asyncio.to_thread(_call),
+                timeout=timeout,
+            )
+
+        return asyncio.run(_async_call())
 
     @staticmethod
     def _check_interface_consistency(code: str, spec: Dict[str, Any], module_name: str) -> List[str]:
@@ -340,7 +339,7 @@ class MergeCoordinator:
     generate code that targets the same file.
     """
 
-    def __init__(self, llm_provider: Any = None):
+    def __init__(self, llm_provider: Any = None) -> None:
         self._provider = llm_provider
         self._targets: Dict[str, Dict[str, Any]] = {}
         self._generations: Dict[str, Dict[str, Any]] = {}
@@ -473,7 +472,7 @@ class ComputerUseOrchestrator:
         self,
         backend: ComputerUseBackend,
         llm_provider: Any = None,
-    ):
+    ) -> None:
         self._backend = backend
         self._provider = llm_provider
 
@@ -526,7 +525,7 @@ class CodeWriterConfig:
     dry_run: bool = False                # 只返回路径，不实际写入
 
 
-def _resolve_path(module_name: str, config: CodeWriterConfig):
+def _resolve_path(module_name: str, config: CodeWriterConfig) -> Any:
     """根据模板解析模块文件路径（带路径遍历防护）"""
     # Security: validate module_name to prevent path traversal
     if not module_name or module_name != Path(module_name).name:

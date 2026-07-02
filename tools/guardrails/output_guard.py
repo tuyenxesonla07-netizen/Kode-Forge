@@ -75,7 +75,7 @@ class OutputGuard:
     5. 代码安全检查 — 标记生成代码中的危险模式（仅警告，不阻断）
     """
 
-    def __init__(self, strict: bool = False):
+    def __init__(self, strict: bool = False) -> None:
         """
         Args:
             strict: 严格模式下，越权承诺会阻断输出而非改写

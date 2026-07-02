@@ -3,8 +3,8 @@ requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "claude-codex-multi-agent"
-version = "0.3.0"
+name = "kodeforge"
+version = "0.4.0.dev0"
 description = "Schema-First Multi-Agent Development Pipeline with RAG dual-engine, skill self-learning, and GRPO optimization"
 readme = "README.md"
 license = {text = "MIT"}
@@ -57,6 +57,11 @@ dev = [
 cc = "tools.cc_cli:main"
 ccm = "tools.cc_cli:main"
 
+[project.entry-points."cc.plugins.providers"]
+anthropic = "tools.llm.anthropic:AnthropicClaudeProvider"
+openai_compatible = "tools.llm.providers:OpenAICompatibleProvider"
+gemini = "tools.llm.providers:GeminiProvider"
+
 [tool.setuptools]
 py-modules = ["__init__"]
 
@@ -64,7 +69,7 @@ py-modules = ["__init__"]
 include = ["tools*", "agents*", "gui*"]
 
 [tool.setuptools.package-data]
-"*" = ["config/**/*.json", "config/**/*.yaml", "tools/skills/builtin/**/*.md"]
+"*" = ["config/**/*.json", "config/**/*.yaml", "plugins/skills/*/skill.json", "plugins/tools/*/tool.json"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
@@ -77,3 +82,20 @@ target-version = "py311"
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
 ignore = ["E501"]
+
+[tool.ruff.lint.per-file-ignores]
+# Project root dir has hyphens in name — N999 is unavoidable for all packages here
+"**/__init__.py" = ["N999"]
+"**/__main__.py" = ["N999"]
+# Deferred imports below class/function definitions (intentional for circular-import avoidance)
+"tools/hitl/approval.py" = ["E402"]
+"tools/server/app.py" = ["E402"]
+"tools/workflow/engine.py" = ["E402"]
+"tools/workflow/execution.py" = ["E402"]
+# Test files: E402 deferred imports, N801 Gap-numbered class names are intentional
+"tests/hitl/test_approval.py" = ["E402"]
+"tests/langgraph_adapter/test_graph_builder.py" = ["E402"]
+"tests/observability/test_observability.py" = ["N801"]
+"tests/security/test_cicd_docs.py" = ["N801"]
+"tests/security/test_docker_hardening.py" = ["N801"]
+"tests/security/test_threat_model.py" = ["N801"]

@@ -31,10 +31,7 @@ class TestHumanNodeInEngine:
 
         run_id = await engine.execute_async("wf-hitl", {"input": "test"},
                                               context={"approval_handler": handler})
-        result = engine.get_run_result(run_id)
-
-        await asyncio.sleep(0.1)
-        result = engine.get_run_result(run_id)
+        result = await engine.wait_for_run(run_id)
 
         assert "n2" in result.outputs
         assert result.outputs["n2"]["approved"] is True

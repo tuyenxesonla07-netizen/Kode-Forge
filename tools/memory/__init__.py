@@ -24,6 +24,7 @@ from tools.memory.short_term import ShortTermMemory, Message
 from tools.memory.long_term import LongTermMemory
 from tools.memory.session_state import SessionState
 from tools.memory.store import MemoryStore, InMemoryStore, JSONFileStore
+from typing import Any
 
 __all__ = [
     "ShortTermMemory",
@@ -40,19 +41,19 @@ class Memory:
     """短期 + 长期记忆的统一门面。"""
 
     def __init__(self, session_id: str = "default", window: int = 12,
-                 persist_path: str = "data/memory_store.json"):
+                 persist_path: str = "data/memory_store.json") -> None:
         self.session_id = session_id
         self.short = ShortTermMemory(window=window)
         self.long = LongTermMemory(persist_path=persist_path)
         self._loaded = False
 
-    def load(self):
+    def load(self) -> Any:
         """从长期记忆中加载历史到短期记忆上下文"""
         context = self.long.context_for(self.session_id)
         self._loaded = True
         return context
 
-    def save_interaction(self, role: str, content: str, metadata: dict = None):
+    def save_interaction(self, role: str, content: str, metadata: dict = None) -> None:
         """保存一条交互记录"""
         self.short.add(role, content, metadata)
         self.long.add_interaction(self.session_id, {
@@ -61,11 +62,11 @@ class Memory:
             **(metadata or {}),
         })
 
-    def add_fact(self, fact: str):
+    def add_fact(self, fact: str) -> None:
         """添加用户事实（去重）"""
         self.long.add_fact(self.session_id, fact)
 
-    def update_profile(self, **fields):
+    def update_profile(self, **fields) -> None:
         """更新用户画像"""
         self.long.update_profile(self.session_id, **fields)
 

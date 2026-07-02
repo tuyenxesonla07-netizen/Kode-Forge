@@ -3,7 +3,7 @@
 import json
 import pytest
 import tempfile
-from tools.server.orchestrator import SessionManager
+from tools.server.pipeline_orchestrator import SessionManager
 
 
 class TestSessionManager:

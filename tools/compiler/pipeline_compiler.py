@@ -22,7 +22,7 @@ from tools.compiler.quality_gate_gen import QualityGateGenerator, QualityGateSui
 @dataclass
 class PipelineConfig:
     """pipeline.yaml 加载结果"""
-    name: str = "claude-codex-multi-agent"
+    name: str = "kodeforge"
     version: str = "1.0.0"
     quality_gates: List[Dict[str, Any]] = field(default_factory=list)
     timeouts: Dict[str, Any] = field(default_factory=dict)
@@ -209,6 +209,38 @@ class CompiledPipeline:
 
         return "\n".join(lines)
 
+    def to_langgraph(
+        self,
+        llm_provider: Any = None,
+        tool_registry: Any = None,
+        **kwargs: Any,
+    ) -> Any:
+        """将 CompiledPipeline 编译为 LangGraph CompiledStateGraph。
+
+        需要: pip install langgraph
+
+        Args:
+            llm_provider: LLM provider 实例
+            tool_registry: PluginToolRegistry 实例
+            **kwargs: 传递给 LangGraphBackend 的额外参数
+
+        Returns:
+            LangGraph CompiledStateGraph 实例
+
+        Raises:
+            ImportError: 如果 langgraph 未安装
+        """
+        from tools.workflow import build_pipeline_workflow
+        from tools.langgraph_adapter.graph_builder import LangGraphBackend
+
+        workflow = build_pipeline_workflow(
+            self,
+            llm_provider=llm_provider,
+            tool_registry=tool_registry,
+        )
+        backend = LangGraphBackend(**kwargs)
+        return backend.build(workflow)
+
 
 class PipelineCompiler:
     """核心编译器入口"""
@@ -220,7 +252,7 @@ class PipelineCompiler:
         spec_store=None,
         message_bus=None,
         global_constraints: Optional[Dict] = None,
-    ):
+    ) -> None:
         self.context_deriver = ContextDeriver()
         self.prompt_generator = PromptTemplateGenerator(global_constraints)
         self.fix_deriver = FixInstructionDeriver()

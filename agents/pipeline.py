@@ -1,6 +1,6 @@
 # agents/pipeline.py
 """
-ClaudeCodexMultiAgent — the full multi-agent pipeline orchestrator.
+KodeForge — the full multi-agent pipeline orchestrator.
 
 Integrates:
   Phase 1: Schema-driven requirement decomposition → code generation
@@ -13,20 +13,17 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import Any, Dict, List, Optional
-
-from agents.pipeline_phase1 import Phase1Pipeline
-from agents.pipeline_phase2 import Phase2Pipeline
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
-
-class ClaudeCodexMultiAgent(Phase1Pipeline, Phase2Pipeline):
+class KodeForge:
     """
-    Claude-Codex Multi-Agent Pipeline — Full Architecture.
+    KodeForge Pipeline — Full Architecture.
 
     Usage:
-        pipeline = ClaudeCodexMultiAgent(
+        pipeline = KodeForge(
             config_dir="config",
             llm_backend="mock",
             enable_guardrails=True,
@@ -57,18 +54,18 @@ class ClaudeCodexMultiAgent(Phase1Pipeline, Phase2Pipeline):
         hitl_mode: str = "auto",
         hitl_auto_under_risk: str = "medium",
         max_workers: int = 3,
-    ):
-        from tools.stores import StoreDatabase, RequirementStore, InterfaceStore, SpecStore
-        from tools.workflow.messaging import MessageBus
-        from tools.quality import QualityEvaluator
-        from tools.guardrails import InputGuard, OutputGuard
-        from tools.memory import Memory, SessionState
-        from tools.hitl import AutoApprovalHandler, ManualApprovalHandler, AuditLog
-        from tools.observability import Tracer, PipelineMetrics
-        from tools.skills import SkillSelector, SkillLoader
-        from tools.workflow import WorkflowEngine
-        from agents.supervisor.agent_executor import write_code_artifacts, CodeWriterConfig
+    ) -> None:
         from agents.experts import create_expert_agents
+        from agents.supervisor.agent_executor import CodeWriterConfig
+        from tools.guardrails import InputGuard, OutputGuard
+        from tools.hitl import AuditLog, AutoApprovalHandler, ManualApprovalHandler
+        from tools.memory import Memory, SessionState
+        from tools.observability import PipelineMetrics, Tracer
+        from tools.plugins import PluginSkillRegistry
+        from tools.quality import QualityEvaluator
+        from tools.stores import InterfaceStore, RequirementStore, SpecStore, StoreDatabase
+        from tools.workflow import WorkflowEngine
+        from tools.workflow.messaging import MessageBus
 
         # ── Core stores ──
         self._store_db = StoreDatabase()
@@ -147,14 +144,16 @@ class ClaudeCodexMultiAgent(Phase1Pipeline, Phase2Pipeline):
         # ── Observability ──
         self.enable_observability = enable_observability
         if enable_observability:
-            self.tracer = Tracer("claude_codex_pipeline")
+            self.tracer = Tracer("kodeforge_pipeline")
             self.metrics = PipelineMetrics()
 
-        # ── Skills ──
-        self.skill_manager = SkillSelector(SkillLoader("tools/skills/builtin"))
+        # ── Skills (Plugin-based) ──
+
+        self.skill_manager = PluginSkillRegistry(plugins_dir=Path("plugins"))
+        self.skill_manager.load()
 
         # ── Agents ──
-        from agents.supervisor import CodexSupervisor, Requirement
+        from agents.supervisor import CodexSupervisor
 
         self.agents_config = self._load_agents_config(config_dir)
         self.supervisor = CodexSupervisor(self.agents_config)
@@ -171,6 +170,18 @@ class ClaudeCodexMultiAgent(Phase1Pipeline, Phase2Pipeline):
         # ── Code Writer ──
         self._code_writer_config = CodeWriterConfig()
 
+        # ── Phase methods (composition over inheritance) ──
+        # Phase1Pipeline and Phase2Pipeline methods use `self` — bind them here
+        # so they operate on this instance without multi-inheritance MRO issues.
+        import types
+
+        from agents.pipeline_phase1 import Phase1Pipeline
+        from agents.pipeline_phase2 import Phase2Pipeline
+        for _cls in (Phase1Pipeline, Phase2Pipeline):
+            for _name, _fn in vars(_cls).items():
+                if callable(_fn) and not _name.startswith("__"):
+                    setattr(self, _name, types.MethodType(_fn, self))
+
     def compile_pipeline(self, module_schemas, input_schemas=None):
         return self.compiler.compile(
             module_schemas,
@@ -179,8 +190,57 @@ class ClaudeCodexMultiAgent(Phase1Pipeline, Phase2Pipeline):
             pipeline_config=self._pipeline_config,
         )
 
-    def run_full_pipeline(self, user_requirement):
-        """Run Phase 1 + Phase 2 as a single end-to-end pipeline."""
+    def run_full_pipeline(self, user_requirement) -> dict:
+        """Run Phase 1 + Phase 2 as a single end-to-end pipeline.
+
+        V0.5.0: 保留旧 Phase1+Phase2 路径（完整功能：编译/代码生成/质量审查/文件写入）。
+        AgentOrchestrator 路径通过 generate_code() 的新选项或 AgentConversationManager 使用。
+        """
+        # Guardrails 注入检测
+        if self.enable_guardrails and hasattr(self, 'input_guard') and self.input_guard is not None:
+            guard_result = self.input_guard.check(user_requirement)
+            if not guard_result.passed:
+                return {"status": "blocked", "reason": guard_result.reason or "Security violation detected"}
+
+        return self._run_legacy_pipeline(user_requirement)
+
+    def run_full_pipeline_v2(self, user_requirement, conversation_id: str = "") -> dict:
+        """V0.5.0 新路径：通过 AgentOrchestrator 执行。
+
+        适用于对话式交互场景。返回格式与 run_full_pipeline 兼容。
+        """
+        from agents.runtime.orchestrator import AgentOrchestrator, AgentOrchestratorConfig
+        from agents.runtime.state import StopReason
+
+        # Guardrails 注入检测
+        if self.enable_guardrails and hasattr(self, 'input_guard') and self.input_guard is not None:
+            guard_result = self.input_guard.check(user_requirement)
+            if not guard_result.passed:
+                return {"status": "blocked", "reason": guard_result.reason or "Security violation detected"}
+
+        config = AgentOrchestratorConfig(
+            max_steps=10,
+            llm_provider=self.llm_provider,
+            skill_registry=self.skill_manager,
+        )
+        orchestrator = AgentOrchestrator(config=config)
+        state = orchestrator.run_agent_sync(user_requirement, conversation_id=conversation_id)
+
+        return {
+            "status": "success" if state.stop_reason == StopReason.ANSWERED else state.stop_reason,
+            "intent": state.intent,
+            "reply": state.reply,
+            "trace": state.trace,
+            "history": [{"role": m.role, "content": m.content} for m in state.history],
+            "tool_history_count": len(state.tool_history),
+            "step_count": state.step_count,
+            "phase1": {"intent": state.intent, "reply": state.reply},
+            "phase2": {"passed": state.stop_reason == StopReason.ANSWERED},
+            "written_files": [],
+        }
+
+    def _run_legacy_pipeline(self, user_requirement) -> dict:
+        """旧 Phase1+Phase2 路径（保留为 fallback）。"""
         root_span = self.tracer.span("full_pipeline") if self.enable_observability else None
 
         try:
@@ -199,7 +259,8 @@ class ClaudeCodexMultiAgent(Phase1Pipeline, Phase2Pipeline):
             written_files = []
             if phase1_result.get("code_artifact"):
                 try:
-                    written_files = write_code_artifacts(phase1_result["code_artifact"], self._code_writer_config)
+                    from agents.supervisor.agent_executor import write_code_artifacts as _write_code_artifacts
+                    written_files = _write_code_artifacts(phase1_result["code_artifact"], self._code_writer_config)
                     logger.info("[Pipeline] Wrote %d code files", len(written_files))
                 except Exception as e:
                     logger.error("[Pipeline] Code writer failed: %s", e)
@@ -224,7 +285,7 @@ class ClaudeCodexMultiAgent(Phase1Pipeline, Phase2Pipeline):
                 root_span["attributes"]["error"] = f"{type(e).__name__}: {e}"
             raise
 
-    async def _execute_workflow_async(self, workflow_id, input_data):
+    async def _execute_workflow_async(self, workflow_id, input_data) -> str:
         """Execute workflow asynchronously and wait for completion."""
         import asyncio
         run_id = await self.workflow_engine.execute_async(
@@ -237,19 +298,9 @@ class ClaudeCodexMultiAgent(Phase1Pipeline, Phase2Pipeline):
                 return run_id
             await asyncio.sleep(0.01)
 
-    def get_mcp_server(self, host="localhost", port=9000):
-        """Create and return an MCP server instance exposing pipeline tools."""
-        from tools.mcp import ToolRegistry, MCPServer
-        from tools.mcp.builtin_tools import register_builtin_tools
-
-        registry = ToolRegistry()
-        register_builtin_tools(registry)
-        server = MCPServer(registry, host=host, port=port)
-        return server
-
     def run_eval(self, cases=None, verbose=True):
         """Run behavioral evaluation suite."""
-        from tools.eval import EvalRunner, EVAL_CASES
+        from tools.eval import EVAL_CASES, EvalRunner
 
         runner = EvalRunner(verbose=verbose)
         selected_cases = cases or EVAL_CASES
@@ -276,7 +327,7 @@ class ClaudeCodexMultiAgent(Phase1Pipeline, Phase2Pipeline):
 
     # ── Private helpers ──────────────────────────────────────────────────────
 
-    def _load_agents_config(self, config_dir):
+    def _load_agents_config(self, config_dir) -> dict:
         try:
             import yaml
         except ImportError:
@@ -300,7 +351,7 @@ class ClaudeCodexMultiAgent(Phase1Pipeline, Phase2Pipeline):
                 return yaml.safe_load("\n".join(yaml_lines)) if yaml_lines else {}
         return {}
 
-    def _load_schemas(self):
+    def _load_schemas(self) -> tuple:
         schemas_dir = os.path.join(os.path.dirname(__file__), "..", "config", "schemas")
         input_schemas = {}
         output_schemas = {}
@@ -380,10 +431,9 @@ class ClaudeCodexMultiAgent(Phase1Pipeline, Phase2Pipeline):
                 conn = getattr(store_db, "connection", None) or getattr(store_db, "_connection", None)
                 if isinstance(conn, sqlite3.Connection):
                     return True
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("SQLite store detection failed: %s", e)
         return False
-
 
 # ---------------------------------------------------------------------------
 # Layer 1 + Layer 2 Public API
@@ -419,7 +469,6 @@ def generate_code(
     )
     return pipeline.run(requirement)
 
-
 class Pipeline:
     """Standard pipeline interface.
 
@@ -441,7 +490,7 @@ class Pipeline:
         enable_observability: bool = True,
         hitl_mode: str = "auto",
         max_workers: int = 3,
-    ):
+    ) -> None:
         self.config_dir = config_dir
         self.llm_backend = llm_backend
         self.llm_api_key = llm_api_key
@@ -457,9 +506,9 @@ class Pipeline:
         self._inner: Any = None
 
     @property
-    def inner(self):
+    def inner(self) -> "KodeForge":
         if self._inner is None:
-            self._inner = ClaudeCodexMultiAgent(
+            self._inner = KodeForge(
                 config_dir=self.config_dir,
                 llm_backend=self.llm_backend,
                 llm_api_key=self.llm_api_key,
@@ -512,7 +561,6 @@ class Pipeline:
     def get_observability(self) -> Dict[str, Any]:
         """Get observability summary from the last run."""
         return self.inner.get_observability_summary()
-
 
 def _create_pipeline(
     config_dir: str,

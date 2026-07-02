@@ -1,0 +1,14 @@
+{
+    "name": "code_generator",
+    "display_name": "Code Generator",
+    "description": "Generate code modules from requirements",
+    "version": "1.0.0",
+    "intents": ["code_generation", "code_create"],
+    "tools": ["compile_pipeline", "generate_code"],
+    "entry_agent": "expert_code_generator",
+    "risk_level": "medium",
+    "prompt_paths": {
+        "system": "prompts/system.md"
+    },
+    "workflow_path": ""
+}

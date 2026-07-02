@@ -13,8 +13,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass, field
-from typing import List, Optional
-
+from typing import List
 
 @dataclass
 class ValidationIssue:
@@ -28,7 +27,6 @@ class ValidationIssue:
         loc = f" [{self.file}]" if self.file else ""
         detail = f"\n   └─ {self.detail}" if self.detail else ""
         return f"{prefix} {self.message}{loc}{detail}"
-
 
 @dataclass
 class ValidationReport:
@@ -46,10 +44,10 @@ class ValidationReport:
     def is_valid(self) -> bool:
         return len(self.errors) == 0
 
-    def add(self, severity: str, message: str, file: str = "", detail: str = ""):
+    def add(self, severity: str, message: str, file: str = "", detail: str = "") -> None:
         self.issues.append(ValidationIssue(severity, message, file, detail))
 
-    def merge(self, other: "ValidationReport"):
+    def merge(self, other: "ValidationReport") -> None:
         self.issues.extend(other.issues)
 
     def summary(self) -> str:
@@ -62,9 +60,10 @@ class ValidationReport:
             lines.append(str(issue))
         return "\n".join(lines)
 
-
 def validate_json_schemas(schemas_dir: str = "config/schemas") -> ValidationReport:
-    """验证所有 JSON Schema 文件格式合法。"""
+    """验证所有 JSON Schema 文件格式合法，支持 $ref / allOf / x-extends 继承。"""
+    from tools.rag.schema_composer import SchemaComposer
+
     report = ValidationReport()
 
     if not os.path.isdir(schemas_dir):
@@ -79,11 +78,13 @@ def validate_json_schemas(schemas_dir: str = "config/schemas") -> ValidationRepo
         report.add("warning", "No JSON Schema files found", schemas_dir)
         return report
 
+    composer = SchemaComposer(base_dir=schemas_dir)
+
     for filename in schema_files:
         filepath = os.path.join(schemas_dir, filename)
         try:
             with open(filepath, "r", encoding="utf-8") as f:
-                data = json.load(f)
+                raw = json.load(f)
         except json.JSONDecodeError as e:
             report.add("error", f"Invalid JSON: {e}", filename)
             continue
@@ -91,9 +92,15 @@ def validate_json_schemas(schemas_dir: str = "config/schemas") -> ValidationRepo
             report.add("error", f"Cannot read file: {e}", filename)
             continue
 
-        # 检查必需字段
-        if not isinstance(data, dict):
+        if not isinstance(raw, dict):
             report.add("error", "Schema root must be a JSON object", filename)
+            continue
+
+        # Resolve inheritance / composition before validation
+        try:
+            data = composer.resolve(raw)
+        except (FileNotFoundError, KeyError, ValueError) as e:
+            report.add("error", f"Schema composition failed: {e}", filename)
             continue
 
         schema_type = data.get("type")
@@ -102,7 +109,6 @@ def validate_json_schemas(schemas_dir: str = "config/schemas") -> ValidationRepo
         elif schema_type != "object":
             report.add("warning", f"Root type is '{schema_type}', expected 'object'", filename)
 
-        # 检查 input schema 有 required 和 properties
         if "_input." in filename:
             if "required" not in data:
                 report.add("warning", "Input schema missing 'required' field", filename)
@@ -110,14 +116,12 @@ def validate_json_schemas(schemas_dir: str = "config/schemas") -> ValidationRepo
             if props and "requirement" not in props:
                 report.add("warning", "Input schema missing 'requirement' property", filename)
 
-        # 检查 output schema 有 module_spec
         if "_output." in filename:
             props = data.get("properties", {})
             if "module_spec" not in props:
                 report.add("error", "Output schema missing 'module_spec' property", filename)
 
     return report
-
 
 def validate_agents_schemas_consistency(
     agents_path: str = "config/agents.yaml",
@@ -214,18 +218,12 @@ def validate_agents_schemas_consistency(
 
     return report
 
-
 def validate_dependency_references(
     agents_path: str = "config/agents.yaml",
     schemas_dir: str = "config/schemas",
 ) -> ValidationReport:
     """验证依赖关系引用完整性。"""
     report = ValidationReport()
-
-    try:
-        import yaml
-    except ImportError:
-        return report
 
     if not os.path.isdir(schemas_dir):
         return report
@@ -267,7 +265,6 @@ def validate_dependency_references(
                 )
 
     return report
-
 
 def validate_all(config_dir: str = "config") -> ValidationReport:
     """运行所有验证，返回完整报告。"""

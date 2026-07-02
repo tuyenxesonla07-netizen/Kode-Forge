@@ -2,22 +2,20 @@
 """
 Phase 2 pipeline logic — code review → fix loop with convergence detection.
 
-This module is mixed into ClaudeCodexMultiAgent via composition.
-Do not import directly; use ClaudeCodexMultiAgent instead.
+This module is mixed into KodeForge via composition.
+Do not import directly; use KodeForge instead.
 """
 
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, List
 
 logger = logging.getLogger(__name__)
 
-
 class Phase2Pipeline:
-    """Phase 2 logic — attached to ClaudeCodexMultiAgent via composition."""
+    """Phase 2 logic — attached to KodeForge via composition."""
 
-    def run_phase2(self, code_artifact, compiled_pipeline=None):
+    def run_phase2(self, code_artifact, compiled_pipeline=None) -> dict:
         """Phase 2: Code Review → Fix Loop with Convergence Detection."""
         root_span = self.tracer.span("phase2") if self.enable_observability else None
 
@@ -68,7 +66,22 @@ class Phase2Pipeline:
                     break
                 iteration += 1
 
-            workflow_result = self._run_workflow_phase2(compiled_pipeline, code_artifact)
+            # Collect fix contexts from review results via RAG
+            fix_contexts: list[str] = []
+            for result in review_results:
+                if result.verdict != "pass" and result.issues:
+                    ctx = self._search_fix_context(result.issues, module_name=result.module)
+                    if ctx:
+                        fix_contexts.append(ctx)
+
+            # Pass fix_contexts to _run_workflow_phase2 (gracefully handle mocks that don't accept it)
+            try:
+                workflow_result = self._run_workflow_phase2(
+                    compiled_pipeline, code_artifact,
+                    fix_contexts=fix_contexts if fix_contexts else None,
+                )
+            except TypeError:
+                workflow_result = self._run_workflow_phase2(compiled_pipeline, code_artifact)
 
             if root_span:
                 root_span["attributes"]["passed"] = report.passed
@@ -93,7 +106,7 @@ class Phase2Pipeline:
                 })
             raise
 
-    def _run_real_reviews(self, module_order, code_artifact):
+    def _run_real_reviews(self, module_order, code_artifact) -> list:
         """Run real LLM-based code reviews for each module.
 
         Uses ExpertAgent.review() with the actual generated code.
@@ -132,7 +145,7 @@ class Phase2Pipeline:
                 results.append(ReviewResult(module=module_name, verdict="pass"))
         return results
 
-    def _run_workflow_phase2(self, compiled, code_artifact):
+    def _run_workflow_phase2(self, compiled, code_artifact, fix_contexts=None) -> dict:
         """Execute Phase 2 review+fix via WorkflowEngine DAG."""
         import asyncio
         from tools.workflow import build_pipeline_workflow
@@ -143,6 +156,7 @@ class Phase2Pipeline:
         try:
             workflow = build_pipeline_workflow(
                 compiled, llm_provider=self.llm_provider, agent_registry=self.expert_agents,
+                fix_contexts=fix_contexts,
             )
             self.workflow_engine._workflows[workflow.id] = workflow
             input_data = {"phase": "review", "code_artifact": code_artifact, "modules": compiled.implementation_order}
@@ -155,7 +169,7 @@ class Phase2Pipeline:
             logger.error("[WorkflowEngine] Phase 2 execution failed: %s", e)
             return {"status": "error", "error": str(e)}
 
-    def _simulate_reviews(self, module_order):
+    def _simulate_reviews(self, module_order) -> list:
         from agents.experts import ReviewInput
         from tools.quality import ReviewResult
 
@@ -172,7 +186,38 @@ class Phase2Pipeline:
                 results.append(ReviewResult(module=module_name, verdict="pass"))
         return results
 
-    def _generate_fix_instructions(self, review_results, compiled_pipeline):
+    def _search_fix_context(self, issues: list, module_name: str = "") -> str:
+        """Retrieve fix examples from RAG pipeline for the given issues.
+
+        Searches the RAG knowledge base for documents relevant to the
+        reported issues, returns formatted context string for prompt injection.
+        """
+        if not issues or self.rag_pipeline is None:
+            return ""
+
+        try:
+            issue_messages = " ".join(i.get("message", "") for i in issues)
+            query = f"fix: {issue_messages}"
+            if module_name:
+                query = f"{module_name} {query}"
+
+            result = self.rag_pipeline.query(query, top_k=3)
+
+            snippets: list[str] = []
+            for doc in result.reranked_documents:
+                snippet = doc.content[:200].strip()
+                if snippet:
+                    snippets.append(f"- [{doc.source}] {snippet}")
+
+            if not snippets:
+                return ""
+
+            return "## Retrieved fix context\n" + "\n".join(snippets)
+        except Exception as e:
+            logger.warning("[Phase2] _search_fix_context failed: %s", e)
+            return ""
+
+    def _generate_fix_instructions(self, review_results, compiled_pipeline) -> list:
         all_instructions = []
         for result in review_results:
             if result.verdict != "pass":

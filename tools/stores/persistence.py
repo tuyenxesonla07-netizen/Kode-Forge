@@ -10,8 +10,21 @@ import json
 import logging
 import sqlite3
 import threading
+import sys
 from pathlib import Path
 from typing import Any, Dict, Optional
+
+
+def _default_db_path() -> str:
+    """Compute the default SQLite path — source vs PyInstaller frozen binary."""
+    # tools/_frozen_paths.py provides a cross-environment resolver.
+    # Import lazily to keep this module importable before the tools/ package.
+    try:
+        from tools._frozen_paths import data_dir
+        return str(data_dir() / "stores.db")
+    except ImportError:
+        pass
+    return str(Path(__file__).parent.parent / "data" / "stores.db")
 
 
 class StoreDatabase:
@@ -29,9 +42,9 @@ class StoreDatabase:
         CREATE INDEX IF NOT EXISTS idx_store_type ON store_data(store_type);
     """
 
-    def __init__(self, db_path: Optional[str] = None):
+    def __init__(self, db_path: Optional[str] = None) -> None:
         if db_path is None:
-            db_path = str(Path(__file__).parent.parent / "data" / "stores.db")
+            db_path = _default_db_path()
         self._db_path = db_path
         self._lock = threading.Lock()
         Path(db_path).parent.mkdir(parents=True, exist_ok=True)
@@ -84,10 +97,10 @@ class StoreDatabase:
     def close(self) -> None:
         self._conn.close()
 
-    def __enter__(self):
+    def __enter__(self) -> None:
         return self
 
-    def __exit__(self, *args):
+    def __exit__(self, *args) -> None:
         self.close()
 
     def __del__(self) -> None:

@@ -32,11 +32,11 @@ FastAPI 服务器 — Pipeline API 入口。
 from __future__ import annotations
 
 import argparse
-import asyncio
 import json
 import logging
+import time
 from dataclasses import dataclass, field
-from typing import List, Optional
+from typing import Any, Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +52,6 @@ from tools.server.middleware import (
     sanitize_log_message,
     SENSITIVE_PATTERNS,
 )
-
 
 # ---------------------------------------------------------------------------
 # ServerConfig
@@ -122,7 +121,6 @@ class ServerConfig:
             log_level=os.getenv("CC_LOG_LEVEL", "INFO"),
         )
 
-
 # ---------------------------------------------------------------------------
 # create_app + main
 # ---------------------------------------------------------------------------
@@ -132,7 +130,7 @@ def create_app(
     tool_registry=None,
     rag_engine=None,
     config: ServerConfig | None = None,
-):
+) -> Any:
     """
     创建 FastAPI 应用。
 
@@ -155,12 +153,9 @@ def create_app(
             "Install with: pip install fastapi uvicorn"
         )
 
-    from tools.server.orchestrator import PipelineOrchestrator, PipelineEvent
+    from tools.server.pipeline_orchestrator import PipelineOrchestrator
     from tools.server.auth import AuthMiddleware
-    from tools.server.middleware import (
-        CorrelationIdMiddleware,
-        GuardrailsMiddleware,
-    )
+    from tools.server.middleware import CorrelationIdMiddleware, GuardrailsMiddleware
 
     if config is None:
         config = ServerConfig()
@@ -169,7 +164,7 @@ def create_app(
 
     _engine_ref: list = []  # 弱引用列表，避免全局变量
 
-    async def lifespan(app):
+    async def lifespan(app) -> Iterator:
         """应用生命周期 — 启动时初始化，关闭时等待任务完成"""
         logger.info("[Server] Starting up...")
         _engine_ref.clear()
@@ -189,7 +184,7 @@ def create_app(
     openapi_url = "/openapi.json" if not config.protect_docs else None
 
     app = FastAPI(
-        title="Claude-Codex Multi-Agent Pipeline API",
+        title="KodeForge API",
         description="Schema-first multi-agent code generation pipeline with RAG dual-engine",
         version="1.0.0",
         docs_url=docs_url,
@@ -231,7 +226,7 @@ def create_app(
     # ─── 全局异常处理 (Gap 14: 错误脱敏) ─────────────────────
 
     @app.exception_handler(Exception)
-    async def global_exception_handler(request: Request, exc: Exception):
+    async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
         """全局异常处理 — 脱敏后返回"""
         logger.error(
             "[API] Unhandled exception: %s",
@@ -245,7 +240,7 @@ def create_app(
         )
 
     @app.exception_handler(HTTPException)
-    async def http_exception_handler(request: Request, exc: HTTPException):
+    async def http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
         """HTTP 异常处理 — 保留原始 status_code，脱敏 detail"""
         if exc.status_code >= 500:
             logger.error(
@@ -274,7 +269,7 @@ def create_app(
     # ─── 健康检查 (Gap 23) ──────────────────────────────────
 
     @app.get("/api/v1/health")
-    async def health_check():
+    async def health_check() -> dict:
         """健康检查 — 返回活跃 pipeline 数和引擎状态"""
         engine = orchestrator.engine if orchestrator else None
         active_count = engine.active_task_count if engine else 0
@@ -287,7 +282,7 @@ def create_app(
 
         return {
             "status": status,
-            "service": "claude-codex-multi-agent",
+            "service": "kodeforge",
             "version": "1.0.0",
             "active_pipelines": active_count,
             "engine_running": engine_running,
@@ -296,7 +291,7 @@ def create_app(
     # ─── Prometheus 指标端点 (Gap 24) ────────────────────────
 
     @app.get("/metrics")
-    async def prometheus_metrics():
+    async def prometheus_metrics() -> Response:
         """Prometheus 指标端点"""
         from starlette.responses import Response
         return Response(
@@ -307,7 +302,7 @@ def create_app(
     # ─── 同步执行 ─────────────────────────────────────────────
 
     @app.post("/api/v1/pipeline/run")
-    async def run_pipeline(body: dict = Body(...)):
+    async def run_pipeline(body: dict = Body(...)) -> JSONResponse:
         """
         同步执行流水线。
 
@@ -316,7 +311,8 @@ def create_app(
         请求体:
             {
                 "requirement": "构建用户登录模块",
-                "context": {}  // 可选
+                "context": {},  // 可选
+                "backend": "workflow"  // 可选: "workflow" | "langgraph"
             }
         """
         requirement = body.get("requirement", "").strip()
@@ -324,9 +320,10 @@ def create_app(
             raise HTTPException(status_code=400, detail="Missing 'requirement' field")
 
         context = body.get("context", {})
+        backend = body.get("backend", "workflow")
 
         try:
-            result = await orchestrator.run_pipeline(requirement)
+            result = await orchestrator.run_pipeline(requirement, backend=backend)
             return JSONResponse(content=result)
         except Exception as e:
             logger.error("[API] Pipeline execution failed: %s", e, exc_info=True)
@@ -335,7 +332,7 @@ def create_app(
     # ─── SSE 流式执行 ─────────────────────────────────────────
 
     @app.post("/api/v1/pipeline/stream")
-    async def stream_pipeline(body: dict = Body(...)):
+    async def stream_pipeline(body: dict = Body(...)) -> Any:
         """
         SSE 流式执行流水线。
 
@@ -356,7 +353,7 @@ def create_app(
         if not requirement:
             raise HTTPException(status_code=400, detail="Missing 'requirement' field")
 
-        async def event_stream():
+        async def event_stream() -> Iterator:
             try:
                 async for event in orchestrator.stream_pipeline(requirement):
                     yield event.to_sse()
@@ -383,7 +380,7 @@ def create_app(
     # ─── 查询运行状态 ─────────────────────────────────────────
 
     @app.get("/api/v1/pipeline/status/{run_id}")
-    async def get_pipeline_status(run_id: str):
+    async def get_pipeline_status(run_id: str) -> dict:
         """
         查询流水线运行状态。
 
@@ -405,9 +402,8 @@ def create_app(
     # ─── 组件状态 ─────────────────────────────────────────────
 
     @app.get("/api/v1/components")
-    async def list_components():
+    async def list_components() -> dict:
         """列出所有已加载的组件及其状态"""
-        from tools.workflow.engine import WorkflowEngine
 
         engine = orchestrator.engine
         workflows = [
@@ -426,23 +422,106 @@ def create_app(
     # ─── 历史记录 ─────────────────────────────────────────────
 
     @app.get("/api/v1/sessions")
-    async def list_sessions(limit: int = 20):
+    async def list_sessions(limit: int = 20) -> dict:
         """列出历史流水线运行记录"""
         runs = orchestrator.list_runs(limit=limit)
         return {"sessions": runs, "count": len(runs)}
 
     @app.get("/api/v1/sessions/{run_id}")
-    async def get_session(run_id: str):
+    async def get_session(run_id: str) -> Any:
         """获取指定运行记录的完整结果"""
         run = orchestrator.get_run(run_id)
         if not run:
             raise HTTPException(status_code=404, detail=f"Session not found: {run_id}")
         return run
 
+    # ─── Webhook 入口 (V0.4.0 F4: OpenClaw 多渠道) ────────
+
+    try:
+        from tools.server.webhook_ingress import create_webhook_router
+        webhook_router = create_webhook_router()
+        if webhook_router:
+            app.include_router(webhook_router)
+            logger.info("[Server] Webhook router mounted at /api/v1/webhook")
+    except Exception as e:
+        logger.debug("[Server] Webhook router not available: %s", e)
+
+    # ─── RAG 子路由器 (V0.5.0: 统一 HTTP 服务器) ────────────
+
+    if rag_engine:
+        try:
+            from tools.rag.api import create_rag_router
+            rag_router = create_rag_router(pipeline=rag_engine)
+            if rag_router:
+                app.include_router(rag_router)
+                logger.info("[Server] RAG router mounted at /api/v1/rag")
+        except Exception as e:
+            logger.debug("[Server] RAG router not available: %s", e)
+
+    # ─── Agent 对话 API (V0.5.0: 统一运行时) ──────────────
+
+    from tools.server.agent_conversation import AgentConversationManager
+
+    conversation_mgr = AgentConversationManager()
+
+    @app.post("/api/v1/agents/conversations")
+    async def create_conversation() -> dict:
+        """创建新对话，返回 conversation_id。"""
+        cid = conversation_mgr.create()
+        return {"conversation_id": cid, "created_at": time.time()}
+
+    @app.get("/api/v1/agents/conversations")
+    async def list_conversations_api() -> dict:
+        """列出所有活跃对话摘要。"""
+        return {"conversations": conversation_mgr.list_conversations()}
+
+    @app.get("/api/v1/agents/conversations/{conversation_id}")
+    async def get_conversation(conversation_id: str) -> dict:
+        """获取对话状态和历史。"""
+        state = conversation_mgr.get(conversation_id)
+        if not state:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        return {
+            "conversation_id": conversation_id,
+            "intent": state.intent,
+            "reply": state.reply,
+            "history": [{"role": m.role, "content": m.content} for m in state.history],
+            "step_count": state.step_count,
+            "stop_reason": str(state.stop_reason),
+        }
+
+    @app.delete("/api/v1/agents/conversations/{conversation_id}")
+    async def delete_conversation(conversation_id: str) -> dict:
+        """删除对话。"""
+        deleted = conversation_mgr.delete(conversation_id)
+        if not deleted:
+            raise HTTPException(status_code=404, detail="Conversation not found")
+        return {"status": "deleted", "conversation_id": conversation_id}
+
+    @app.post("/api/v1/agents/conversations/{conversation_id}/messages")
+    async def send_message(conversation_id: str, body: dict = Body(...)) -> Any:
+        """发送消息到对话，返回 SSE 流式响应。"""
+        message = body.get("message", "").strip()
+        if not message:
+            raise HTTPException(status_code=400, detail="Missing 'message' field")
+
+        async def event_stream() -> Iterator:
+            async for event in conversation_mgr.send_message(conversation_id, message):
+                yield event
+
+        return StreamingResponse(
+            event_stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+                "Connection": "keep-alive",
+            },
+        )
+
     return app
 
-
-def main():
+def main() -> None:
     """CLI 入口: python -m tools.server.app --port 8080"""
     import uvicorn
 
@@ -456,7 +535,7 @@ def main():
 
     print(f"""
 ╔══════════════════════════════════════════════════╗
-║  Claude-Codex Multi-Agent Pipeline API Server    ║
+║  KodeForge API Server                            ║
 ╠══════════════════════════════════════════════════╣
 ║  URL:  http://{args.host}:{args.port}              ║
 ║  Docs: http://{args.host}:{args.port}/docs         ║
@@ -470,7 +549,6 @@ def main():
         port=args.port,
         log_level="debug" if args.debug else "info",
     )
-
 
 if __name__ == "__main__":
     main()

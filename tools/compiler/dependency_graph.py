@@ -20,7 +20,7 @@ class DependencyGraph:
     # 所有模块节点
     nodes: Set[str] = field(default_factory=set)
 
-    def add_module(self, module: str, dependencies: List[str] = None):
+    def add_module(self, module: str, dependencies: List[str] = None) -> None:
         """添加模块及其依赖"""
         self.nodes.add(module)
         if dependencies:
@@ -127,7 +127,7 @@ class DependencyGraph:
 class DependencyGraphBuilder:
     """从 agents.yaml 配置构建依赖图"""
 
-    def __init__(self, agents_config: dict):
+    def __init__(self, agents_config: dict) -> None:
         """
         agents_config 结构:
         {

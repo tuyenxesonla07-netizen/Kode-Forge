@@ -1,13 +1,9 @@
-# Development dependencies
+# KodeForge — Development dependencies
+# Source of truth: pyproject.toml [project.optional-dependencies] dev
 # Install: pip install -r requirements-dev.txt
+# Last synced: 2026-07-01 with pyproject.toml v0.4.0.dev0
 
-# Linting
 ruff>=0.4.0
-
-# Testing
 pytest>=7.0
 pytest-asyncio>=0.21
 pytest-cov>=4.0
-
-# Type checking (optional)
-# mypy>=1.0

@@ -49,7 +49,7 @@ class LLMNode:
     """LLM 调用节点"""
 
     def __init__(self, prompt_template: str = "", provider=None,
-                 model: str = "", temperature: float = 0.7, max_tokens: int = 4096):
+                 model: str = "", temperature: float = 0.7, max_tokens: int = 4096) -> None:
         self.prompt_template = prompt_template
         self.provider = provider
         self.model = model
@@ -84,7 +84,7 @@ class LLMNode:
 class RAGNode:
     """知识库检索节点"""
 
-    def __init__(self, rag_engine=None, top_k: int = 5):
+    def __init__(self, rag_engine=None, top_k: int = 5) -> None:
         self.rag_engine = rag_engine
         self.top_k = top_k
 
@@ -106,7 +106,7 @@ class ToolNode:
     """MCP 工具调用节点"""
 
     def __init__(self, tool_registry=None, tool_name: str = "",
-                 arguments: dict = None):
+                 arguments: dict = None) -> None:
         self.tool_registry = tool_registry
         self.tool_name = tool_name
         self.arguments = arguments or {}
@@ -131,7 +131,7 @@ class ToolNode:
 class CodeNode:
     """Python 代码执行节点（沙箱模式）"""
 
-    def __init__(self, code_template: str = "", safe_mode: bool = False):
+    def __init__(self, code_template: str = "", safe_mode: bool = False) -> None:
         self.code_template = code_template
         self.safe_mode = safe_mode
 
@@ -169,7 +169,7 @@ class BranchNode:
     """条件分支节点"""
 
     def __init__(self, condition: str = "true",
-                 branches: Dict[str, str] = None):
+                 branches: Dict[str, str] = None) -> None:
         """
         Args:
             condition: 条件表达式（基于 inputs）
@@ -210,7 +210,7 @@ class HumanNode:
 
     def __init__(self, prompt: str = "需要人工确认",
                  risk_level: str = "high",
-                 approval_handler=None):
+                 approval_handler=None) -> None:
         self.prompt = prompt
         self.risk_level = risk_level
         self.approval_handler = approval_handler

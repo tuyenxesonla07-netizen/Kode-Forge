@@ -40,7 +40,7 @@ class AuditLog:
         records = audit.query(session_id="s1")
     """
 
-    def __init__(self, persist_path: str = "data/audit_log.jsonl"):
+    def __init__(self, persist_path: str = "data/audit_log.jsonl") -> None:
         self.persist_path = Path(persist_path) if persist_path else None
         self._records: list[dict] = []
         if self.persist_path and self.persist_path.exists():

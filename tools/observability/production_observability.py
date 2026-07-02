@@ -35,7 +35,6 @@ class AlertLevel(str, Enum):
     WARNING = "warning"
     CRITICAL = "critical"
 
-
 class WebhookAlerter:
     """
     Webhook 告警投递器。
@@ -53,7 +52,7 @@ class WebhookAlerter:
         webhook_url: Optional[str] = None,
         min_level: AlertLevel = AlertLevel.WARNING,
         timeout: float = 10.0,
-    ):
+    ) -> None:
         self.webhook_url = webhook_url or os.environ.get("CC_WEBHOOK_URL", "")
         self.min_level = min_level
         self.timeout = timeout
@@ -84,7 +83,7 @@ class WebhookAlerter:
             "message": message,
             "level": level.value,
             "timestamp": datetime.now().isoformat(timespec="seconds"),
-            "service": "claude-codex-multi-agent",
+            "service": "kodeforge",
             "details": details or {},
         }
 
@@ -124,17 +123,10 @@ class WebhookAlerter:
         """清空告警历史"""
         self._history.clear()
 
-
 # ── Prometheus Metrics ──────────────────────────────────────────────────────
 
 try:
-    from prometheus_client import (
-        Counter,
-        Gauge,
-        Histogram,
-        generate_latest,
-        CONTENT_TYPE_LATEST,
-    )
+    from prometheus_client import Counter, Gauge, Histogram, generate_latest
     HAS_PROMETHEUS = True
 except ImportError:
     HAS_PROMETHEUS = False
@@ -165,7 +157,6 @@ if HAS_PROMETHEUS:
         "Currently active pipeline executions",
     )
 
-
 def record_request(method: str, endpoint: str, status: int, duration: float) -> None:
     """记录请求指标"""
     if not HAS_PROMETHEUS:
@@ -173,13 +164,11 @@ def record_request(method: str, endpoint: str, status: int, duration: float) -> 
     pipeline_requests.labels(method=method, endpoint=endpoint, status=str(status)).inc()
     pipeline_duration.labels(method=method, endpoint=endpoint).observe(duration)
 
-
 def record_guardrails_block(reason: str) -> None:
     """记录 Guardrails 拦截"""
     if not HAS_PROMETHEUS:
         return
     guardrails_blocked.labels(reason=reason).inc()
-
 
 def set_active_pipelines(count: int) -> None:
     """设置活跃 pipeline 数"""
@@ -187,13 +176,11 @@ def set_active_pipelines(count: int) -> None:
         return
     active_pipelines.set(count)
 
-
 def get_metrics_response() -> bytes:
     """获取 Prometheus 格式的 metrics 数据"""
     if not HAS_PROMETHEUS:
         return b"# prometheus-client not installed"
     return generate_latest()
-
 
 def setup_metrics() -> dict:
     """
@@ -211,7 +198,6 @@ def setup_metrics() -> dict:
         "set_active_pipelines": set_active_pipelines,
     }
 
-
 # ── Structured JSON Logging ────────────────────────────────────────────────
 
 # 请求关联 ID（ContextVar — 线程/协程安全）
@@ -220,11 +206,9 @@ request_id_var: ContextVar[str] = ContextVar("request_id", default="")
 # 脱敏模式：sk- 前缀的 API Key
 _SENSITIVE_PATTERN = re.compile(r"(sk-[a-zA-Z0-9_-]{8,})")
 
-
 def _redact_sensitive(value: str) -> str:
     """脱敏敏感信息（API Key、Token 等）"""
     return _SENSITIVE_PATTERN.sub("sk-***", value)
-
 
 class SensitiveFilter(logging.Filter):
     """日志过滤器 — 自动脱敏敏感信息"""
@@ -245,14 +229,12 @@ class SensitiveFilter(logging.Filter):
                 )
         return True
 
-
 class RequestIdFilter(logging.Filter):
     """日志过滤器 — 自动注入 request_id"""
 
     def filter(self, record: logging.LogRecord) -> bool:
         record.request_id = request_id_var.get("")  # type: ignore[attr-defined]
         return True
-
 
 class JsonFormatter(logging.Formatter):
     """JSON 格式日志 Formatter"""
@@ -292,7 +274,6 @@ class JsonFormatter(logging.Formatter):
                 log_entry[key] = value
 
         return json.dumps(log_entry, ensure_ascii=False, default=str)
-
 
 def setup_json_logging(
     level: str = "INFO",
@@ -346,11 +327,9 @@ def setup_json_logging(
         file_handler.addFilter(request_id_filter)
         root_logger.addHandler(file_handler)
 
-
 def set_request_id(request_id: str) -> None:
     """设置当前上下文的 request_id"""
     request_id_var.set(request_id)
-
 
 def get_request_id() -> str:
     """获取当前上下文的 request_id"""

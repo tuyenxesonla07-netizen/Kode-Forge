@@ -2,27 +2,24 @@
 """
 Phase 1 pipeline logic — requirement decomposition → expert analysis → code generation.
 
-This module is mixed into ClaudeCodexMultiAgent via composition.
-Do not import directly; use ClaudeCodexMultiAgent instead.
+This module is mixed into KodeForge via composition.
+Do not import directly; use KodeForge instead.
 """
 
 from __future__ import annotations
 
 import logging
-import os
 import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Dict
 
 logger = logging.getLogger(__name__)
 
-
 class Phase1Pipeline:
-    """Phase 1 logic — attached to ClaudeCodexMultiAgent via composition."""
+    """Phase 1 logic — attached to KodeForge via composition."""
 
-    def run_phase1(self, user_requirement):
+    def run_phase1(self, user_requirement) -> dict:
         """Phase 1: Requirement → Module Specs → Code Generation."""
-        from tools.observability import Tracer, PipelineMetrics
 
         root_span = self.tracer.span("phase1", input_preview=user_requirement[:80]) if self.enable_observability else None
 
@@ -64,8 +61,6 @@ class Phase1Pipeline:
 
             # ── Step 1: Parse requirement + compile pipeline ──
             compile_span = self.tracer.span("compile_pipeline") if self.enable_observability else None
-            from agents.supervisor import Requirement
-
             requirement = self.supervisor.parse_requirement(user_requirement)
             input_schemas, output_schemas = self._load_schemas()
             compiled = self.compile_pipeline(output_schemas, input_schemas=input_schemas)
@@ -176,7 +171,7 @@ class Phase1Pipeline:
                                     tokens=len(str(output)) // 4,
                                 )
                 else:
-                    def _process_expert(module_name):
+                    def _process_expert(module_name) -> str:
                         strategy = compiled.context_strategies.get(module_name)
                         input_schema = input_schemas.get(module_name, {})
                         expert_input = self._build_expert_input(
@@ -254,7 +249,7 @@ class Phase1Pipeline:
                             with _code_lock:
                                 code_artifact[module_name] = code
                 else:
-                    def _generate_code(module_name):
+                    def _generate_code(module_name) -> str:
                         spec = module_specs[module_name]
                         code = self.supervisor.generate_code(
                             module_spec=spec.__dict__ if hasattr(spec, "__dict__") else spec,
@@ -317,9 +312,9 @@ class Phase1Pipeline:
                 root_span["attributes"]["workflow_status"] = workflow_result.get("status", "skipped")
                 root_span["status"] = "ok"
 
-            print(f"[MultiAgent] {summary}")
+            logger.info("[MultiAgent] %s", summary)
             for mod, code in code_artifact.items():
-                print(f"  {mod}: {code.count(chr(10)) + 1} lines")
+                logger.info("  %s: %s lines", mod, code.count("\n") + 1)
 
             return {
                 "blocked": False, "awaiting_approval": False, "reason": "",
@@ -341,9 +336,10 @@ class Phase1Pipeline:
                 })
             raise
 
-    def _run_workflow_phase1(self, compiled, code_artifact):
+    def _run_workflow_phase1(self, compiled, code_artifact) -> dict:
         """Execute Phase 1 compiled pipeline via WorkflowEngine DAG."""
         import asyncio
+
         from tools.workflow import build_pipeline_workflow
 
         if not compiled or not hasattr(compiled, "implementation_order"):

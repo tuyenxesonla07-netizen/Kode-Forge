@@ -1,0 +1,46 @@
+# Dockerfile.compliance — KodeForge Quality Gate / Compliance Edition
+#
+# Purpose: Seed-customer demo image focused on AI code quality gating,
+#          HITL approval chain, and SOC2/HIPPA audit-trail export.
+#
+# Build:
+#   docker build -f Dockerfile.compliance -t kodeforge:compliance .
+#
+# Run:
+#   docker run --rm kodeforge:compliance                        # default: show quality config
+#   docker run --rm kodeforge:compliance quality                # run quality gate on sample
+#   docker run --rm kodeforge:compliance audit                  # print audit-log schema
+#   docker run --rm kodeforge:compliance serve --port 8080      # start API server
+#   docker run --rm -p 8080:8080 kodeforge:compliance serve     # expose server
+#   docker run --rm -e ANTHROPIC_API_KEY=... kodeforge:compliance quality
+#
+# Environment:
+#   See .env.example for full variable list.
+
+FROM python:3.12-slim AS base
+WORKDIR /app
+
+# ── Install runtime deps only (no dev tools) ──────────────────────────────
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# ── Copy application ─────────────────────────────────────────────────────
+COPY . .
+
+# ── Pre-build example schema artifacts so first run is not slow ───────────
+# (no-op if files already exist; safe to delete)
+RUN python -m tools.cc_cli status > /dev/null 2>&1 || true
+
+# ── Non-root user (security / SOC-2 friendly) ─────────────────────────────
+RUN useradd --create-home appuser \
+ && chown -R appuser:appuser /app \
+ && mkdir -p /tmp/audit /tmp/cache \
+ && chown -R appuser:appuser /tmp/audit /tmp/cache
+USER appuser
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONPATH=/app \
+    AUDIT_LOG_DIR=/tmp/audit \
+    KODEFORGE_PRESET=financial-general
+
+ENTRYPOINT ["python", "-m", "tools.cc_cli"]
+CMD ["status"]

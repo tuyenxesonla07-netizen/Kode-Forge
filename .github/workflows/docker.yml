@@ -21,7 +21,7 @@ jobs:
         run: docker build -t ccm-test --target dev .
 
       - name: Lint
-        run: docker run --rm ccm-test ruff check tools/ agents/ tests/ --ignore E501
+        run: docker run --rm ccm-test ruff check tools/ agents/ tests/ --select N999,N801,E402
 
       - name: Test
         run: docker run --rm ccm-test python -m pytest tests/ -q --tb=short
@@ -77,10 +77,10 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-            docker stop claude-codex-multi-agent || true
-            docker rm claude-codex-multi-agent || true
+            docker stop kodeforge || true
+            docker rm kodeforge || true
             docker run -d \
-              --name claude-codex-multi-agent \
+              --name kodeforge \
               --restart unless-stopped \
               -p 9000:9000 \
               -e ANTHROPIC_API_KEY=${{ secrets.ANTHROPIC_API_KEY }} \

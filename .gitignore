@@ -226,6 +226,16 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# CI artifacts
+ci-artifacts/
+test-output-*.txt
+test-results-*.xml
+
+# Version-specific planning docs (belong in PR descriptions, not source)
+docs/ROADMAP_*.md
+docs/V*.md
+COMPARISON.md
+
 # Runtime database files
 tools/data/
 *.sqlite3
@@ -234,6 +244,8 @@ tools/data/
 # Runtime feedback / registry data
 .feedback.json
 .skill_registry.json
+data/*.jsonl
+data/memory_store.json
 
 # Checkpoint / session runtime state
 .checkpoints/
@@ -243,6 +255,19 @@ tools/data/
 .idea/
 .vscode/
 
-# OS
-.DS_Store
-Thumbs.db
+# One-off debug / tool scripts — do not commit
+_apply_r3r5.py
+_verify_final.py
+
+# Pyflakes / pylint scratch output — one-off debugging snapshots
+# All *.txt in repo root is treated as scratch by default
+*.txt
+!requirements.txt
+!requirements-dev.txt
+
+
+# Windows PyInstaller debug .spec (generated, do not track)
+*.spec
+
+# Claude Desktop local runtime state (per-user)
+.claude/

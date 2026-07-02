@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "cd \"${CLAUDE_PROJECT_DIR}\" && python -m ruff check --select E,F --quiet $(git diff --name-only --diff-filter=ACM 2>/dev/null | grep '\\.py$' | head -5) 2>/dev/null || true"
+          }
+        ]
+      }
+    ]
+  }
+}

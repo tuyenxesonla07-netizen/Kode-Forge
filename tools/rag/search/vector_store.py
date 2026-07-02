@@ -34,23 +34,20 @@ Usage:
 from __future__ import annotations
 
 import logging
-import uuid
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any
 
 import numpy as np
 
-from tools.rag.rag_types import RAGConfig, Document
+from tools.rag.rag_types import Document
 
 logger = logging.getLogger(__name__)
-
 
 # ---------------------------------------------------------------------------
 # 向量存储后端类型
 # ---------------------------------------------------------------------------
 
 VectorStoreBackend = Any  # MilvusCollection | ChromaCollection | InMemoryStore
-
 
 # ---------------------------------------------------------------------------
 # 搜索结果
@@ -64,7 +61,6 @@ class VectorSearchResult:
     score: float
     document: Document | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
-
 
 # ---------------------------------------------------------------------------
 # 内存向量存储 (始终可用)
@@ -198,7 +194,6 @@ class InMemoryVectorStore:
         self._doc_ids = []
         self._documents = {}
 
-
 # ---------------------------------------------------------------------------
 # Milvus 向量存储
 # ---------------------------------------------------------------------------
@@ -222,7 +217,7 @@ class MilvusVectorStore:
         self.metric_type = metric_type
         self._collection = None
 
-    def _get_collection(self):
+    def _get_collection(self) -> Any:
         """获取或创建 Milvus collection。"""
         if self._collection is not None:
             return self._collection
@@ -404,7 +399,6 @@ class MilvusVectorStore:
         coll = self._get_collection()
         coll.drop()
 
-
 # ---------------------------------------------------------------------------
 # Chroma 向量存储
 # ---------------------------------------------------------------------------
@@ -421,7 +415,7 @@ class ChromaVectorStore:
         self.persist_dir = persist_dir
         self._collection = None
 
-    def _get_collection(self):
+    def _get_collection(self) -> Any:
         """获取或创建 Chroma collection。"""
         if self._collection is not None:
             return self._collection
@@ -552,7 +546,6 @@ class ChromaVectorStore:
         coll = self._get_collection()
         coll.delete(where={"id": {"$ne": "__empty__"}})
 
-
 # ---------------------------------------------------------------------------
 # 统一向量存储入口 (自动选择后端)
 # ---------------------------------------------------------------------------
@@ -601,19 +594,16 @@ class VectorStore:
         """自动选择最佳后端。"""
         # 检查 Milvus
         try:
-            import pymilvus  # noqa: F401
-
             from pymilvus import connections
 
             connections.connect("default", uri="http://localhost:19530")
             connections.disconnect("default")
             return "milvus"
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning("Milvus backend auto-select probe failed: %s", e)
 
         # 检查 Chroma
         try:
-            import chromadb  # noqa: F401
 
             return "chroma"
         except ImportError:

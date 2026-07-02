@@ -207,7 +207,7 @@ class TestPipelineYamlLoading(unittest.TestCase):
     def test_load_pipeline_config(self):
         """应能加载 pipeline.yaml"""
         cfg = PipelineConfig.load("config/pipeline.yaml")
-        self.assertEqual(cfg.name, "claude-codex-multi-agent")
+        self.assertEqual(cfg.name, "kodeforge")
         self.assertGreater(len(cfg.quality_gates), 0)
 
     def test_compile_with_pipeline_config(self):
@@ -226,7 +226,7 @@ class TestPipelineYamlLoading(unittest.TestCase):
         compiled = compiler.compile(module_schemas, pipeline_config=cfg)
 
         self.assertTrue(compiled.metadata.get("pipeline_config_loaded"))
-        self.assertEqual(compiled.metadata.get("pipeline_name"), "claude-codex-multi-agent")
+        self.assertEqual(compiled.metadata.get("pipeline_name"), "kodeforge")
         self.assertGreater(
             compiled.quality_gates.metadata.get("external_gates_merged", 0), 0
         )

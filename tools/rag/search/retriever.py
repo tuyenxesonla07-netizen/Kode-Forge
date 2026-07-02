@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import math
-import warnings
 from collections import defaultdict
 from typing import Any, Protocol
 
@@ -312,20 +311,9 @@ class GraphRetriever:
 
 
 def _tokenize_bm25(text: str) -> list[str]:
-    """Tokenize using jieba (Chinese-friendly) with English word splitting."""
-    try:
-        import jieba
-
-        tokens = list(jieba.cut(text, cut_all=False))
-        # jieba often leaves whole English phrases as single tokens; split them further
-        expanded: list[str] = []
-        for tok in tokens:
-            sub_tokens = tok.lower().split()
-            expanded.extend(t for t in sub_tokens if t)
-        return expanded if expanded else text.lower().split()
-    except ImportError:
-        # Fallback: simple whitespace tokenization
-        return text.lower().split()
+    """Tokenize using pluggable strategy (jieba when available, simple fallback)."""
+    from tools.rag.tokenizer import tokenize
+    return tokenize(text)
 
 
 def _cosine_similarities(query: np.ndarray, matrix: np.ndarray) -> np.ndarray:

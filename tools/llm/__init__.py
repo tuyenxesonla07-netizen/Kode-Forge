@@ -37,6 +37,27 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# ── Plugin discovery (entry_points) ──────────────────────────
+_discovered_plugins: dict = {}
+_plugins_loaded: bool = False
+
+
+def _ensure_plugins_loaded() -> None:
+    """Load discovered plugins once. Swallows exceptions for robustness."""
+    global _discovered_plugins, _plugins_loaded
+    if _plugins_loaded:
+        return
+    try:
+        from tools.llm.plugin import PluginLoader
+        loader = PluginLoader()
+        _discovered_plugins = loader.discover()
+        if _discovered_plugins:
+            logger.info("[LLM] Discovered %d plugin(s): %s",
+                        len(_discovered_plugins), list(_discovered_plugins.keys()))
+    except Exception as e:
+        logger.warning("[LLM] Plugin discovery failed (non-fatal): %s", e)
+    _plugins_loaded = True
+
 # Optional providers — gracefully handle missing packages
 try:
     from tools.llm.anthropic import AnthropicClaudeProvider
@@ -98,6 +119,10 @@ def create_llm_provider(
     """
     Create an LLM provider instance.
 
+    Plugin discovery runs first: if the backend matches a discovered plugin
+    (via entry_points), it is loaded through the plugin system. Otherwise,
+    falls back to the built-in provider registry.
+
     Args:
         backend: Provider backend name. One of:
             - "mock" (default, no API key needed)
@@ -105,6 +130,7 @@ def create_llm_provider(
             - "openai", "tongyi", "qwen", "deepseek", "zhipu", "zhipuai",
               "moonshot", "kimi", "minimax" (OPENAI_API_KEY + openai SDK)
             - "gemini" (GEMINI_API_KEY)
+            - Any name registered via cc.plugins.providers entry_points
             - None: auto-detect from environment variables
         api_key: API key (overrides environment variable)
         model: Model name (overrides default for backend)
@@ -120,6 +146,18 @@ def create_llm_provider(
         logger.info("Auto-detected LLM backend: %s", backend)
 
     backend = backend.lower()
+
+    # --- Plugin discovery (entry_points) ---
+    _ensure_plugins_loaded()
+    if backend in _discovered_plugins:
+        logger.info("[LLM] Loading '%s' via plugin system", backend)
+        from tools.llm.plugin import PluginLoader
+        meta = _discovered_plugins[backend]
+        plugin_kwargs = {"api_key": api_key, "model": model}
+        if base_url:
+            plugin_kwargs["base_url"] = base_url
+        plugin_kwargs.update(kwargs)
+        return PluginLoader().load(backend, **plugin_kwargs)
 
     # --- Mock ---
     if backend == "mock":

@@ -1,0 +1,345 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write       # action-gh-release 发布 release
+  packages: write       # docker push 到 ghcr.io
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
+
+######################################################################
+# 阶段 1：测试 + 类型检查 (Ubuntu，只跑一次，所有 job 的依赖入口)
+######################################################################
+jobs:
+  test:
+    name: "Tests + Lint"
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Lint (ruff)
+        run: ruff check tools/ agents/ --select N999,E402
+
+      - name: Test (pytest)
+        run: python -m pytest tests/ -x -q --tb=short
+
+      - name: Validate config schemas
+        run: python -m tools.cc_cli validate --config-dir config
+
+  ######################################################################
+  # 阶段 2：跨平台 PyInstaller 构建（3 个并行 job）
+  ######################################################################
+  build_windows:
+    name: "Windows (PyInstaller)"
+    needs: test
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install -r requirements.txt
+
+      - name: Build (onedir)
+        shell: cmd
+        run: >
+          pyinstaller
+          --onedir --console --clean --noconfirm
+          --name kodeforge
+          --paths .
+          --paths tools --paths agents --paths gui
+          --collect-all tools --collect-all agents
+          --add-data "config;config"
+          --add-data "gui;gui"
+          --hidden-import=tools.cc_cli
+          --hidden-import=tools.rag --hidden-import=tools.rag.*
+          --hidden-import=tools.quality --hidden-import=tools.quality.*
+          --hidden-import=tools.hitl --hidden-import=tools.hitl.*
+          --hidden-import=tools.compiler --hidden-import=tools.compiler.*
+          --hidden-import=tools.workflow --hidden-import=tools.workflow.*
+          --hidden-import=agents.supervisor --hidden-import=agents.supervisor.*
+          --hidden-import=agents.experts --hidden-import=agents.experts.*
+          --hidden-import=agents.runtime --hidden-import=agents.runtime.*
+          --exclude-module matplotlib --exclude-module tkinter --exclude-module IPython
+          dist/pyinstaller/spec windows-build
+          tools/cc_cli.py
+
+      - name: Smoke test (basic CLI check)
+        run: |
+          .\dist\pyinstaller\windows-latest\kodeforge\kodeforge.exe status
+
+      - name: Zip artifact
+        shell: pwsh
+        run: |
+          $tagName = "${{ github.ref_name }}"
+          Compress-Archive -Path "dist\pyinstaller\windows-latest\kodeforge\*" `
+            -DestinationPath "kodeforge-${tagName}-windows-x64.zip" -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-windows
+          path: kodeforge-*-windows-x64.zip
+          retention-days: 7
+
+  build_linux:
+    name: "Linux (PyInstaller)"
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install UPX (size optimization)
+        run: sudo apt-get install -y upx-ucl
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install -r requirements.txt
+
+      - name: Build (onedir)
+        run: >
+          pyinstaller
+          --onedir --console --clean --noconfirm
+          --name kodeforge
+          --paths .
+          --paths tools --paths agents --paths gui
+          --collect-all tools --collect-all agents
+          --add-data "config:config"
+          --add-data "gui:gui"
+          --hidden-import=tools.cc_cli
+          --hidden-import=tools.rag --hidden-import=tools.rag.*
+          --hidden-import=tools.quality --hidden-import=tools.quality.*
+          --hidden-import=tools.hitl --hidden-import=tools.hitl.*
+          --hidden-import=tools.compiler --hidden-import=tools.compiler.*
+          --hidden-import=tools.workflow --hidden-import=tools.workflow.*
+          --hidden-import=agents.supervisor --hidden-import=agents.supervisor.*
+          --hidden-import=agents.experts --hidden-import=agents.experts.*
+          --hidden-import=agents.runtime --hidden-import=agents.runtime.*
+          --exclude-module matplotlib --exclude-module tkinter --exclude-module IPython
+          dist/pyinstaller/spec linux-build
+          tools/cc_cli.py
+
+      - name: Smoke test
+        run: ./dist/pyinstaller/linux-x64/kodeforge/kodeforge status
+
+      - name: Tar artifact
+        run: |
+          TAG="${{ github.ref_name }}"
+          cd dist/pyinstaller/linux-x64
+          tar czf "../../../kodeforge-${TAG}-linux-x64.tar.gz" kodeforge/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-linux
+          path: kodeforge-*-linux-x64.tar.gz
+          retention-days: 7
+
+  build_macos:
+    name: "macOS (PyInstaller)"
+    needs: test
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip -m install -r requirements.txt
+
+      - name: Build (onedir)
+        run: >
+          pyinstaller
+          --onedir --console --clean --noconfirm
+          --name kodeforge
+          --paths .
+          --paths tools --paths agents --paths gui
+          --collect-all tools --collect-all agents
+          --add-data "config:config"
+          --add-data "gui:gui"
+          --hidden-import=tools.cc_cli
+          --hidden-import=tools.rag --hidden-import=tools.rag.*
+          --hidden-import=tools.quality --hidden-import=tools.quality.*
+          --hidden-import=tools.hitl --hidden-import=tools.hitl.*
+          --hidden-import=tools.compiler --hidden-import=tools.compiler.*
+          --hidden-import=tools.workflow --hidden-import=tools.workflow.*
+          --hidden-import=agents.supervisor --hidden-import=agents.supervisor.*
+          --hidden-import=agents.experts --hidden-import=agents.experts.*
+          --hidden-import=agents.runtime --hidden-import=agents.runtime.*
+          --exclude-module matplotlib --exclude-module tkinter --exclude-module IPython
+          dist/pyinstaller/spec macos-build
+          tools/cc_cli.py
+
+      - name: Smoke test
+        run: ./dist/pyinstaller/macos-arm64/kodeforge/kodeforge status
+
+      - name: Zip artifact
+        run: |
+          TAG="${{ github.ref_name }}"
+          cd dist/pyinstaller/macos-arm64
+          zip -r "../../../kodeforge-${TAG}-macos-arm64.zip" kodeforge/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-macos
+          path: kodeforge-*-macos-arm64.zip
+          retention-days: 7
+
+  ######################################################################
+  # 阶段 3：Wheel (标准 Python 包)
+  ######################################################################
+  build_wheel:
+    name: "Python Wheel"
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build tools
+        run: pip install build
+
+      - name: Build wheel
+        run: python -m build --wheel
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-wheel
+          path: dist/*.whl
+          retention-days: 7
+
+  ######################################################################
+  # 阶段 4：Docker（并行）
+  ######################################################################
+  build_docker:
+    name: "Docker Image"
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/metadata-action@v5
+        id: meta
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile.compliance
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  ######################################################################
+  # 阶段 5：创建 GitHub Release，把所有产物挂上去
+  ######################################################################
+  publish_release:
+    name: "Publish Release"
+    needs: [build_windows, build_linux, build_macos, build_wheel, build_docker]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets/
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -lh release-assets/
+
+      - name: Auto-generate Release Notes header
+        run: |
+          cat > release-notes.md <<'EOF'
+          ## 🛡️ KodeForge ${{ github.ref_name }}
+
+          ### 安装方式
+
+          **Docker（推荐企业试用）**
+          ```bash
+          docker pull ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }}
+          docker run --rm ghcr.io/${{ env.IMAGE_NAME }}:${{ github.ref_name }} validate
+          ```
+
+          **Windows**：下载 `kodeforge-${{ github.ref_name }}-windows-x64.zip`，解压后双击 `kodeforge.exe`
+          **macOS**：下载 `kodeforge-${{ github.ref_name }}-macos-arm64.zip`，解压后在终端运行 `./kodeforge status`
+          **Linux**：下载 `kodeforge-${{ github.ref_name }}-linux-x64.tar.gz`，解压后 `./kodeforge status`
+
+          **Python pip**
+          ```bash
+          pip install kodeforge==${{ github.ref_name }}
+          ```
+
+          ### macOS Gatekeeper
+          首次运行如提示「已损坏」，请在终端执行：
+          ```bash
+          xattr -cr kodeforge
+          ```
+
+          ---
+          _(以下为自动生成的 changelog)_
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          body_path: release-notes.md
+          files: release-assets/*
+          fail_on_unmatched_files: false
+          make_latest: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

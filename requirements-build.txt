@@ -1,0 +1,3 @@
+# Build-only dependencies (CI runners, not end users)
+pyinstaller>=6.0
+build>=1.0

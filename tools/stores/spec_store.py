@@ -43,7 +43,7 @@ class ModuleSpec:
 class SpecStore:
     """模块规格存储（内存 + 可选 SQLite 持久化）"""
 
-    def __init__(self, db: Optional[StoreDatabase] = None):
+    def __init__(self, db: Optional[StoreDatabase] = None) -> None:
         self._store: Dict[str, ModuleSpec] = {}
         self._db = db
         self._store_type = "module_spec"
@@ -95,7 +95,7 @@ class SpecStore:
         """获取有状态机的模块列表"""
         return [name for name, spec in self._store.items() if spec.state_machine is not None]
 
-    def clear(self):
+    def clear(self) -> None:
         """清空存储（内存 + DB）"""
         self._store.clear()
         if self._db:

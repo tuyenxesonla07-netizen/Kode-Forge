@@ -28,14 +28,14 @@ class CompilationError(CCBaseException):
 
 class DependencyCycleError(CompilationError):
     """模块依赖存在环"""
-    def __init__(self, cycle: list[str]):
+    def __init__(self, cycle: list[str]) -> None:
         self.cycle = cycle
         super().__init__(f"Dependency cycle detected: {' → '.join(cycle)}")
 
 
 class DependencyNotFoundError(CompilationError):
     """模块依赖的模块不存在"""
-    def __init__(self, module: str, missing_dep: str):
+    def __init__(self, module: str, missing_dep: str) -> None:
         self.module = module
         self.missing_dep = missing_dep
         super().__init__(f"Module '{module}' depends on '{missing_dep}' which does not exist")
@@ -50,7 +50,7 @@ class WorkflowExecutionError(CCBaseException):
 
 class WorkflowPermissionError(WorkflowExecutionError):
     """节点权限校验失败"""
-    def __init__(self, node_id: str, missing: list[str]):
+    def __init__(self, node_id: str, missing: list[str]) -> None:
         self.node_id = node_id
         self.missing = missing
         super().__init__(f"Node '{node_id}' missing permissions: {missing}")
@@ -70,7 +70,7 @@ class LLMError(CCBaseException):
 
 class LLMProviderNotFoundError(LLMError):
     """请求的 LLM provider 不可用"""
-    def __init__(self, backend: str):
+    def __init__(self, backend: str) -> None:
         self.backend = backend
         super().__init__(f"LLM backend '{backend}' is not available")
 
@@ -89,7 +89,7 @@ class PipelineError(CCBaseException):
 
 class InputGuardError(PipelineError):
     """输入安全检查未通过"""
-    def __init__(self, reason: str, pii_found: list[str] | None = None):
+    def __init__(self, reason: str, pii_found: list[str] | None = None) -> None:
         self.reason = reason
         self.pii_found = pii_found or []
         super().__init__(f"Input blocked: {reason}")
@@ -97,14 +97,14 @@ class InputGuardError(PipelineError):
 
 class OutputGuardError(PipelineError):
     """输出安全检查未通过"""
-    def __init__(self, reason: str):
+    def __init__(self, reason: str) -> None:
         self.reason = reason
         super().__init__(f"Output blocked: {reason}")
 
 
 class QualityGateError(PipelineError):
     """质量门禁未通过（超过最大迭代次数）"""
-    def __init__(self, iterations: int, final_score: float):
+    def __init__(self, iterations: int, final_score: float) -> None:
         self.iterations = iterations
         self.final_score = final_score
         super().__init__(f"Quality gate failed after {iterations} iterations (score: {final_score:.2f})")

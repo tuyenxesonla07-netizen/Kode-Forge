@@ -39,7 +39,7 @@ class EvalRunner:
     """
 
     def __init__(self, run_pipeline_fn: Callable = None, verbose: bool = True,
-                 isolate: bool = False):
+                 isolate: bool = False) -> None:
         """
         Args:
             run_pipeline_fn: 运行流水线的函数，接收 input 字符串，返回 result 字典。
@@ -195,7 +195,7 @@ class ABTestRunner:
         print(report.render_table())
     """
 
-    def __init__(self, verbose: bool = True):
+    def __init__(self, verbose: bool = True) -> None:
         self.verbose = verbose
 
     def compare(

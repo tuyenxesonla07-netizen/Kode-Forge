@@ -31,14 +31,9 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Sequence
-
-import numpy as np
-
-from tools.rag.rag_types import RAGConfig, Document
+from typing import Any
 
 logger = logging.getLogger(__name__)
-
 
 # ---------------------------------------------------------------------------
 # Memory item
@@ -83,7 +78,6 @@ class MemoryItem:
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> MemoryItem:
         return cls(**{k: v for k, v in data.items() if k in cls.__dataclass_fields__})
-
 
 # ---------------------------------------------------------------------------
 # Memory Manager
@@ -444,44 +438,22 @@ class MemoryManager:
         with open(self.persist_path, "w", encoding="utf-8") as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
 
-
 # ---------------------------------------------------------------------------
 # Internal helpers
 # ---------------------------------------------------------------------------
 
 def _tokenize(text: str) -> list[str]:
-    """Language-aware tokenization with jieba for Chinese text.
-
-    Uses lazy import with a guard: if jieba is not already in sys.modules,
-    attempt a quick import. If it's not available or takes too long, fall back
-    to regex tokenization.
-    """
-    import sys
-
-    if "jieba" in sys.modules:
-        import jieba
-        tokens = list(jieba.cut(text, cut_all=False))
-        expanded: list[str] = []
-        for tok in tokens:
-            expanded.extend(w for w in tok.lower().split() if w)
-        return expanded if expanded else text.lower().split()
-
-    # jieba not pre-imported — use regex fallback to avoid blocking on import
-    import re
-    # Split into Chinese characters and alphanumeric tokens
-    tokens = re.findall(r"[a-z0-9]+|[一-鿿]", text.lower())
-    return tokens if tokens else text.lower().split()
-
+    """Language-aware tokenizer — delegates to pluggable strategy."""
+    from tools.rag.tokenizer import tokenize
+    return tokenize(text)
 
 def _split_sentences(text: str) -> list[str]:
     """Split text into sentences."""
     import re
     return [s.strip() for s in re.split(r"[.!?。！？\n]+", text) if s.strip()]
 
-
 def _extract_keywords(text: str, top_n: int = 8) -> list[str]:
     """Extract keywords from text."""
-    import re
     tokens = _tokenize(text)
     stopwords = {
         "the", "a", "an", "is", "are", "was", "were", "be", "been",
@@ -494,7 +466,6 @@ def _extract_keywords(text: str, top_n: int = 8) -> list[str]:
     # Keep tokens with >1 char (Chinese) or >2 chars (English)
     filtered = [t for t in tokens if len(t) > 1 and t not in stopwords]
     return list(dict.fromkeys(filtered))[:top_n]
-
 
 def _estimate_importance(sentence: str) -> float:
     """Estimate how important a sentence is for memorization (0-1)."""

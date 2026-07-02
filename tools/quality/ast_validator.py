@@ -20,7 +20,6 @@ AST 验证器 — 检查生成代码的语法和结构。
 from __future__ import annotations
 
 import ast
-import sys
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 

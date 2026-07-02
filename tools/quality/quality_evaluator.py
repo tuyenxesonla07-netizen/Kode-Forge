@@ -51,7 +51,7 @@ class QualityReport:
 class QualityEvaluator:
     """质量评估器"""
 
-    def __init__(self, message_bus=None, quality_gates: Optional[QualityGateSuite] = None):
+    def __init__(self, message_bus=None, quality_gates: Optional[QualityGateSuite] = None) -> None:
         self.message_bus = message_bus
         self.convergence_detector = ConvergenceDetector()
         self.quality_gates = quality_gates

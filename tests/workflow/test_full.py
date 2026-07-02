@@ -230,8 +230,7 @@ class TestWorkflowEngineExtended:
             "edges": [],
         })
         run_id = await engine.execute_async("llm-test", {"input": "test"})
-        await asyncio.sleep(0.3)
-        result = engine.get_run_result(run_id)
+        result = await engine.wait_for_run(run_id)
         assert result is not None
         assert result.status == "success"
 
@@ -247,8 +246,7 @@ class TestWorkflowEngineExtended:
             "edges": [],
         })
         run_id = await engine.execute_async("code-test", {})
-        await asyncio.sleep(0.3)
-        result = engine.get_run_result(run_id)
+        result = await engine.wait_for_run(run_id)
         assert result is not None
         assert result.status == "success"
         assert result.outputs.get("n1", {}).get("output") == "5"

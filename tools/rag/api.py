@@ -35,9 +35,8 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any
 
-from tools.rag.rag_types import RAGConfig
 
 logger = logging.getLogger(__name__)
 
@@ -135,16 +134,16 @@ def _build_fastapi_app(
 
     # ---- 依赖注入 ----
 
-    def _get_pipeline():
+    def _get_pipeline() -> Any:
         return pipeline
 
-    def _get_observer():
+    def _get_observer() -> Any:
         return observer
 
     # ---- REST Endpoints ----
 
     @app.get("/api/v1/health")
-    async def health_check():
+    async def health_check() -> Any:
         """健康检查。"""
         obs = _get_observer()
         if obs:
@@ -154,7 +153,7 @@ def _build_fastapi_app(
         return {"status": "ok", "timestamp": time.time()}
 
     @app.get("/api/v1/metrics")
-    async def get_metrics():
+    async def get_metrics() -> Any:
         """获取指标。"""
         obs = _get_observer()
         if obs:
@@ -162,7 +161,7 @@ def _build_fastapi_app(
         return {"error": "metrics not enabled"}
 
     @app.post("/api/v1/ingest")
-    async def ingest(request: dict[str, Any]):
+    async def ingest(request: dict[str, Any]) -> dict:
         """摄入文档。"""
         start = time.time()
 
@@ -207,7 +206,7 @@ def _build_fastapi_app(
         }
 
     @app.post("/api/v1/query")
-    async def query(request: dict[str, Any]):
+    async def query(request: dict[str, Any]) -> Any:
         """搜索引擎模式查询。"""
         start = time.time()
 
@@ -269,7 +268,7 @@ def _build_fastapi_app(
             raise HTTPException(status_code=500, detail=str(e))
 
     @app.post("/api/v1/query/cognitive")
-    async def query_cognitive(request: dict[str, Any]):
+    async def query_cognitive(request: dict[str, Any]) -> Any:
         """认知引擎模式查询。"""
         start = time.time()
 
@@ -343,7 +342,7 @@ def _build_fastapi_app(
             raise HTTPException(status_code=500, detail=str(e))
 
     @app.get("/api/v1/documents")
-    async def list_documents():
+    async def list_documents() -> dict:
         """列出所有文档 (摘要)。"""
         docs = []
         for doc in pipeline._documents:
@@ -357,7 +356,7 @@ def _build_fastapi_app(
         return {"documents": docs, "total": len(docs)}
 
     @app.get("/api/v1/documents/{doc_id}")
-    async def get_document(doc_id: str):
+    async def get_document(doc_id: str) -> dict:
         """获取单个文档。"""
         for doc in pipeline._documents:
             if doc.doc_id == doc_id:
@@ -373,7 +372,7 @@ def _build_fastapi_app(
         raise HTTPException(status_code=404, detail="Document not found")
 
     @app.delete("/api/v1/documents/{doc_id}")
-    async def delete_document(doc_id: str):
+    async def delete_document(doc_id: str) -> dict:
         """删除单个文档。"""
         before = len(pipeline._documents)
         pipeline._documents = [
@@ -387,7 +386,7 @@ def _build_fastapi_app(
     # ---- WebSocket ----
 
     @app.websocket("/ws/v1/query")
-    async def websocket_query(websocket: WebSocket):
+    async def websocket_query(websocket: WebSocket) -> None:
         """WebSocket 流式查询。
 
         请求格式 (JSON):
@@ -448,12 +447,12 @@ def _build_fastapi_app(
                     "type": "error",
                     "message": str(e),
                 })
-            except Exception:
-                pass
+            except Exception as e:
+                logger.warning("Failed to send JSON-RPC error over WebSocket: %s", e)
 
     # OpenAPI 文档
     @app.get("/docs", include_in_schema=False)
-    async def custom_swagger_ui_html():
+    async def custom_swagger_ui_html() -> Any:
         """Swagger UI。"""
         from fastapi.openapi.docs import get_swagger_ui_html
 
@@ -465,6 +464,319 @@ def _build_fastapi_app(
         )
 
     return app
+
+
+def create_rag_router(
+    pipeline: Any = None,
+    observer: Any = None,
+) -> Any:
+    """创建 RAG APIRouter，可挂载到主 FastAPI 应用。
+
+    用法:
+        from tools.rag.api import create_rag_router
+        rag_router = create_rag_router(pipeline, observer)
+        app.include_router(rag_router)
+
+    路由前缀: /api/v1/rag
+    """
+    try:
+        from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+    except ImportError:
+        logger.warning("FastAPI not installed. create_rag_router returns None.")
+        return None
+
+    router = APIRouter(prefix="/api/v1/rag", tags=["rag"])
+
+    def _get_pipeline() -> Any:
+        return pipeline
+
+    def _get_observer() -> Any:
+        return observer
+
+    @router.get("/health")
+    async def rag_health() -> Any:
+        """健康检查。"""
+        obs = _get_observer()
+        if obs:
+            return obs.health_check(
+                vector_store=getattr(pipeline, "_vector_store", None)
+            )
+        return {"status": "ok", "timestamp": time.time()}
+
+    @router.get("/metrics")
+    async def rag_metrics() -> Any:
+        """获取指标。"""
+        obs = _get_observer()
+        if obs:
+            return obs.get_metrics_summary()
+        return {"error": "metrics not enabled"}
+
+    @router.post("/ingest")
+    async def rag_ingest(request: dict[str, Any]) -> dict:
+        """摄入文档。"""
+        start = time.time()
+        try:
+            req = IngestRequest.from_dict(request)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid request: {e}")
+
+        if not req.documents:
+            raise HTTPException(status_code=400, detail="No documents provided")
+
+        from tools.rag.rag_types import Document
+
+        docs = []
+        for doc_data in req.documents:
+            content = doc_data.get("content", "")
+            source = doc_data.get("source", "api")
+            metadata = doc_data.get("metadata", {})
+            if not content:
+                continue
+            docs.append(Document(content=content, source=source, metadata=metadata))
+
+        if not docs:
+            raise HTTPException(status_code=400, detail="No valid documents")
+
+        pipeline.ingest(docs)
+        elapsed = (time.time() - start) * 1000
+
+        obs = _get_observer()
+        if obs and obs.logger:
+            obs.logger.log_ingest(
+                num_documents=len(docs),
+                num_chunks=len(docs),
+                latency_ms=elapsed,
+            )
+
+        return {
+            "status": "ok",
+            "num_documents": len(docs),
+            "latency_ms": round(elapsed, 2),
+        }
+
+    @router.post("/query")
+    async def rag_query(request: dict[str, Any]) -> Any:
+        """搜索引擎模式查询。"""
+        start = time.time()
+        try:
+            req = QueryRequest.from_dict(request)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid request: {e}")
+
+        if not req.query.strip():
+            raise HTTPException(status_code=400, detail="Empty query")
+
+        try:
+            result = pipeline.query(req.query, top_k=req.top_k)
+            elapsed = (time.time() - start) * 1000
+
+            docs = []
+            for doc in result.reranked_documents:
+                docs.append({
+                    "content": doc.content[:500],
+                    "source": doc.source,
+                    "score": round(doc.score, 4),
+                    "doc_id": doc.doc_id,
+                    "metadata": {k: v for k, v in doc.metadata.items()
+                                 if k != "embedding"},
+                })
+
+            response = QueryResponse(
+                query=req.query,
+                answer=result.answer,
+                intent=result.intent.primary_intent if result.intent else "",
+                documents=docs,
+                metadata=result.metadata,
+                latency_ms=elapsed,
+            )
+
+            obs = _get_observer()
+            if obs:
+                obs.record_query(
+                    query=req.query,
+                    num_results=len(docs),
+                    latency_ms=elapsed,
+                    intent=response.intent,
+                )
+
+            return response.to_dict()
+
+        except Exception as e:
+            elapsed = (time.time() - start) * 1000
+            obs = _get_observer()
+            if obs:
+                obs.record_query(
+                    query=req.query,
+                    num_results=0,
+                    latency_ms=elapsed,
+                    error=str(e),
+                )
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.post("/query/cognitive")
+    async def rag_query_cognitive(request: dict[str, Any]) -> Any:
+        """认知引擎模式查询。"""
+        start = time.time()
+        try:
+            req = QueryRequest.from_dict(request)
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Invalid request: {e}")
+
+        if not req.query.strip():
+            raise HTTPException(status_code=400, detail="Empty query")
+
+        kwargs: dict[str, Any] = {}
+        mode = request.get("mode", req.mode)
+        if "skill_manager" in request:
+            kwargs["skill_manager"] = request["skill_manager"]
+        if "memory_manager" in request:
+            kwargs["memory_manager"] = request["memory_manager"]
+        if "user_model" in request:
+            kwargs["user_model"] = request["user_model"]
+        if "extract_skill" in request:
+            kwargs["extract_skill"] = request["extract_skill"]
+
+        try:
+            result = pipeline.query_cognitive(req.query, top_k=req.top_k, **kwargs)
+            elapsed = (time.time() - start) * 1000
+
+            docs = []
+            for doc in result.reranked_documents:
+                docs.append({
+                    "content": doc.content[:500],
+                    "source": doc.source,
+                    "score": round(doc.score, 4),
+                    "doc_id": doc.doc_id,
+                    "metadata": {k: v for k, v in doc.metadata.items()
+                                 if k != "embedding"},
+                })
+
+            response = QueryResponse(
+                query=req.query,
+                answer=result.answer,
+                intent=result.intent.primary_intent if result.intent else "",
+                documents=docs,
+                metadata={**result.metadata, "mode": "cognitive"},
+                latency_ms=elapsed,
+            )
+
+            obs = _get_observer()
+            if obs:
+                obs.record_query(
+                    query=req.query,
+                    num_results=len(docs),
+                    latency_ms=elapsed,
+                    intent=response.intent,
+                    backend="cognitive",
+                )
+
+            return response.to_dict()
+
+        except Exception as e:
+            elapsed = (time.time() - start) * 1000
+            obs = _get_observer()
+            if obs:
+                obs.record_query(
+                    query=req.query,
+                    num_results=0,
+                    latency_ms=elapsed,
+                    error=str(e),
+                )
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @router.get("/documents")
+    async def rag_list_documents() -> dict:
+        """列出所有文档 (摘要)。"""
+        docs = []
+        for doc in pipeline._documents:
+            docs.append({
+                "doc_id": doc.doc_id,
+                "source": doc.source,
+                "content_preview": doc.content[:200],
+                "metadata": {k: v for k, v in doc.metadata.items()
+                             if k != "embedding"},
+            })
+        return {"documents": docs, "total": len(docs)}
+
+    @router.get("/documents/{doc_id}")
+    async def rag_get_document(doc_id: str) -> dict:
+        """获取单个文档。"""
+        for doc in pipeline._documents:
+            if doc.doc_id == doc_id:
+                return {
+                    "doc_id": doc.doc_id,
+                    "content": doc.content,
+                    "source": doc.source,
+                    "metadata": {
+                        k: v for k, v in doc.metadata.items()
+                        if k != "embedding"
+                    },
+                }
+        raise HTTPException(status_code=404, detail="Document not found")
+
+    @router.delete("/documents/{doc_id}")
+    async def rag_delete_document(doc_id: str) -> dict:
+        """删除单个文档。"""
+        before = len(pipeline._documents)
+        pipeline._documents = [
+            d for d in pipeline._documents if d.doc_id != doc_id
+        ]
+        removed = before - len(pipeline._documents)
+        if removed == 0:
+            raise HTTPException(status_code=404, detail="Document not found")
+        return {"status": "ok", "removed": removed}
+
+    # ---- WebSocket ----
+
+    @router.websocket("/ws/query")
+    async def rag_websocket_query(websocket: WebSocket) -> None:
+        """WebSocket 流式查询。"""
+        await websocket.accept()
+        try:
+            data = await websocket.receive_text()
+            request = json.loads(data)
+            req = QueryRequest.from_dict(request)
+
+            await websocket.send_json({"type": "start", "query": req.query})
+
+            start = time.time()
+            result = pipeline.query(req.query, top_k=req.top_k)
+
+            for doc in result.reranked_documents:
+                await websocket.send_json({
+                    "type": "document",
+                    "content": doc.content[:500],
+                    "source": doc.source,
+                    "score": round(doc.score, 4),
+                    "doc_id": doc.doc_id,
+                })
+                await asyncio.sleep(0.01)
+
+            elapsed = (time.time() - start) * 1000
+
+            await websocket.send_json({
+                "type": "answer",
+                "text": result.answer,
+            })
+
+            await websocket.send_json({
+                "type": "end",
+                "latency_ms": round(elapsed, 2),
+                "num_documents": len(result.reranked_documents),
+            })
+
+        except WebSocketDisconnect:
+            pass
+        except Exception as e:
+            try:
+                await websocket.send_json({
+                    "type": "error",
+                    "message": str(e),
+                })
+            except Exception as e:
+                logger.warning("Failed to send JSON-RPC error over WebSocket: %s", e)
+
+    return router
 
 
 # ---------------------------------------------------------------------------
@@ -485,7 +797,7 @@ def _build_flask_app(
     app = Flask(__name__)
 
     @app.route("/api/v1/health", methods=["GET"])
-    def health_check():
+    def health_check() -> Any:
         obs = observer
         if obs:
             return jsonify(obs.health_check(
@@ -494,7 +806,7 @@ def _build_flask_app(
         return jsonify({"status": "ok"})
 
     @app.route("/api/v1/query", methods=["POST"])
-    def query():
+    def query() -> Any:
         start = time.time()
         data = request.get_json()
         if not data:
@@ -538,7 +850,7 @@ def _build_flask_app(
             return jsonify({"error": str(e)}), 500
 
     @app.route("/api/v1/ingest", methods=["POST"])
-    def ingest():
+    def ingest() -> Any:
         data = request.get_json()
         if not data:
             return jsonify({"error": "No JSON data"}), 400
