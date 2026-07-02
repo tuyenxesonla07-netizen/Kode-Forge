@@ -22,8 +22,11 @@ from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
 
-# 风险等级定义
-RISK_LEVELS = ["low", "medium", "high"]
+# 风险等级定义（从低到高）
+RISK_LEVELS = ["low", "medium", "high", "critical"]
+
+# Dual-factor enforcement: CRITICAL risk requires at least N distinct approvers
+CRITICAL_MIN_APPROVERS = 2
 
 @dataclass
 class ApprovalResult:
@@ -71,13 +74,18 @@ class AutoApprovalHandler(ApprovalHandler):
     def __init__(self, auto_under_risk: str = "low") -> None:
         """
         Args:
-            auto_under_risk: 低于等于此等级的风险自动放行
+            auto_under_risk: 低于等于此等级的风险自动放行。
+                不允许设为 "critical" — critical 风险永远需要人工。
         """
+        if auto_under_risk == "critical":
+            raise ValueError("auto_under_risk cannot be 'critical'")
         self.auto_under_risk = auto_under_risk
         self._risk_order = {level: i for i, level in enumerate(RISK_LEVELS)}
 
     def request_approval(self, tool_name: str, args: dict, risk_level: str,
                          context: dict = None) -> ApprovalResult:
+        if risk_level not in RISK_LEVELS:
+            raise ValueError(f"Unknown risk level: {risk_level!r}")
         risk_idx = self._risk_order.get(risk_level, 0)
         threshold_idx = self._risk_order.get(self.auto_under_risk, 0)
 
@@ -288,12 +296,39 @@ class EnterpriseApprovalHandler(ApprovalHandler):
                 timer.start()
                 self._timers[approval_id] = timer
 
-        requires_human = risk_level in ("medium", "high") and not chain.is_empty
+        requires_human = risk_level == "critical" or (risk_level in ("medium", "high") and not chain.is_empty)
+
+        # CRITICAL risk: publish immediate alert on message bus + audit event
+        if risk_level == "critical":
+            self._audit.record({
+                "event": "critical_approval_required",
+                "approval_id": approval_id,
+                "tool_name": tool_name,
+                "risk_level": risk_level,
+                "min_approvers": CRITICAL_MIN_APPROVERS,
+            })
+            if self._messaging_bus is not None:
+                try:
+                    self._messaging_bus.publish("alert.critical", {
+                        "approval_id": approval_id,
+                        "tool_name": tool_name,
+                        "risk_level": risk_level,
+                    })
+                except Exception as e:
+                    logger.warning("Failed to publish CRITICAL alert: %s", e)
+
+        if risk_level == "critical":
+            comment = (
+                f"Approval requested (id={approval_id}, risk=critical, "
+                f"requires {CRITICAL_MIN_APPROVERS} distinct approvers)"
+            )
+        else:
+            comment = f"Approval requested (id={approval_id}, risk={risk_level})"
 
         return ApprovalResult(
             approved=False,
             approver="",
-            comment=f"Approval requested (id={approval_id}, risk={risk_level})",
+            comment=comment,
             requires_human=requires_human,
             approval_id=approval_id,
         )
@@ -308,11 +343,9 @@ class EnterpriseApprovalHandler(ApprovalHandler):
         """
         批准审批请求。
 
-        Args:
-            approval_id: 审批 ID
-            actor: 审批人 ID
-            comment: 审批意见
-            justification: 审批理由
+        For CRITICAL risk operations dual-factor enforcement applies:
+        at least ``CRITICAL_MIN_APPROVERS`` *distinct* actors must approve
+        before the request actually transitions to APPROVED.
         """
         record = self._records.get(approval_id)
         if record is None:
@@ -322,6 +355,33 @@ class EnterpriseApprovalHandler(ApprovalHandler):
                 comment=f"Unknown approval_id: {approval_id}",
                 requires_human=False,
             )
+
+        # CRITICAL dual-factor: track distinct approvers
+        if record.request.risk_level == "critical":
+            if not hasattr(record, '_approvers'):
+                record._approvers = set()
+            if actor in record._approvers:
+                return ApprovalResult(
+                    approved=False,
+                    approver=actor,
+                    comment=f"{actor} has already approved",
+                    requires_human=False,
+                )
+            record._approvers.add(actor)
+            if len(record._approvers) < CRITICAL_MIN_APPROVERS:
+                # Record partial progress in audit log
+                self._audit.record({
+                    "event": "critical_approval_partial",
+                    "approval_id": approval_id,
+                    "actor": actor,
+                    "count": f"{len(record._approvers)}/{CRITICAL_MIN_APPROVERS}",
+                })
+                return ApprovalResult(
+                    approved=False,
+                    approver=actor,
+                    comment=f"Partial approval {len(record._approvers)}/{CRITICAL_MIN_APPROVERS}",
+                    requires_human=True,
+                )
 
         try:
             record.state_machine.approve(reason=f"approved by {actor}: {comment}")

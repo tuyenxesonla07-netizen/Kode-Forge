@@ -25,7 +25,7 @@ Usage:
     )
 """
 
-from tools.rag.rag_types import RAGConfig, Document
+from tools.rag.rag_types import RAGConfig, Document, IngestReport
 from tools.rag.feedback.rag_feedback import (
     FeedbackSample,
     FeedbackStore,
@@ -68,6 +68,8 @@ __all__ = [
     "RAGConfig",
     # Document
     "Document",
+    # Ingestion report
+    "IngestReport",
     # Feedback
     "FeedbackSample",
     "FeedbackStore",
